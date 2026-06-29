@@ -1,6 +1,6 @@
 ﻿# 回归套件报告摘要
 
-生成时间：2026-06-29 01:16:43
+生成时间：2026-06-29 11:48:01
 报告来源：`production\latest_1_0_0_report.json`
 
 ## 1. 总览
@@ -74,7 +74,7 @@
 
 | 场景 | 通过 | 视口 | 横向溢出 | 首屏对象 | 首屏动作 | 可操作入口 | 截图 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| desktop-guided | True | 1280x900 | 0 | True | True | True | prototype/prototype_1_0_0_full.png |
+| desktop-guided | True | 1280x900 | 0 | False | True | True | prototype/prototype_1_0_0_full.png |
 | mobile-low | True | 390x844 | 0 | True | True | True | prototype/prototype_1_0_0_mobile.png |
 
 ## 8. 校验覆盖

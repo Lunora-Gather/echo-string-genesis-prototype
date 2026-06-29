@@ -23,7 +23,7 @@
         "overflowX": 0,
         "firstActionVisible": true,
         "firstActionEnabled": true,
-        "firstObjectVisible": true,
+        "firstObjectVisible": false,
         "firstObjectEnabled": true,
         "firstUsableStepVisible": true,
         "resultPulseVisible": true,
