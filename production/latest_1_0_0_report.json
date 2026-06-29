@@ -4,7 +4,7 @@
   "uxBuild": "1.0.0",
   "uxBuildName": "Public Playtest",
   "source": "Node VM regression suite with guided and low-guidance routes",
-  "generatedAt": "2026-06-29T03:47:56.935Z",
+  "generatedAt": "2026-06-29T18:07:10.450Z",
   "passed": true,
   "rollout": [
     {
@@ -256,7 +256,7 @@
           "overflowX": 0,
           "firstActionVisible": true,
           "firstActionEnabled": true,
-          "firstObjectVisible": false,
+          "firstObjectVisible": true,
           "firstObjectEnabled": true,
           "firstUsableStepVisible": true,
           "resultPulseVisible": true,

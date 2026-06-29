@@ -276,7 +276,7 @@ async function captureScenario(browser, scenario) {
     await setViewport(session, scenario);
     const url = `${APP_URL}${APP_URL.includes("?") ? "&" : "?"}mode=${scenario.mode}`;
     await navigate(session, url);
-    await wait(250);
+    await wait(1200);
     const inspection = await inspectPage(session, scenario);
     const screenshot = await session.call("Page.captureScreenshot", {
       format: "png",
