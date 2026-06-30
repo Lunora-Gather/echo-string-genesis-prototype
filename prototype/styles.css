@@ -3699,6 +3699,146 @@ body.regression-mode .metrics-box {
   min-width: 0 !important;
 }
 
+/* ==========================================================================
+   💎 Premium Dark Theme Glassmorphism Overrides (Refining visual polish)
+   ========================================================================== */
+
+/* 1. Global Card & Panel Backgrounds: Replace hardcoded white-grey with premium dark glass */
+body:not(.theme-light) .status-card,
+body:not(.theme-light) .session-chip,
+body:not(.theme-light) .decision-chip,
+body:not(.theme-light) .step-item,
+body:not(.theme-light) .action-group,
+body:not(.theme-light) .event-log,
+body:not(.theme-light) .reflection-box,
+body:not(.theme-light) .metrics-box,
+body:not(.theme-light) .inventory-list,
+body:not(.theme-light) .preview-box,
+body:not(.theme-light) .scan-gate,
+body:not(.theme-light) .boss-gauge,
+body:not(.theme-light) .boss-phase-plan span,
+body:not(.theme-light) .zone-summary-table {
+  background: rgba(10, 22, 17, 0.7) !important;
+  border: 1px solid rgba(52, 211, 153, 0.15) !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* 2. Text Color Contrast Fixes for Dark Theme Chips */
+body:not(.theme-light) .session-status {
+  color: var(--muted) !important;
+}
+body:not(.theme-light) .session-chip span,
+body:not(.theme-light) .decision-chip span,
+body:not(.theme-light) .status-card span {
+  color: var(--muted) !important;
+  opacity: 0.8 !important;
+  font-weight: 500 !important;
+}
+body:not(.theme-light) .session-chip strong,
+body:not(.theme-light) .decision-chip strong,
+body:not(.theme-light) .status-card strong {
+  color: var(--ink) !important;
+  font-weight: 700 !important;
+}
+
+/* 3. Dark Theme Button Adjustments: Frosted glass buttons instead of flat grey */
+body:not(.theme-light) .quiet-button,
+body:not(.theme-light) .action-button {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(52, 211, 153, 0.18) !important;
+  color: var(--ink) !important;
+  backdrop-filter: blur(8px) !important;
+}
+body:not(.theme-light) .quiet-button:hover,
+body:not(.theme-light) .action-button:hover {
+  background: rgba(52, 211, 153, 0.12) !important;
+  border-color: rgba(52, 211, 153, 0.4) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 15px rgba(52, 211, 153, 0.15) !important;
+}
+
+/* 4. Cyber Holographic Object Cards */
+body:not(.theme-light) .object-token {
+  background: rgba(10, 22, 17, 0.6) !important;
+  border: 1px solid rgba(52, 211, 153, 0.18) !important;
+  border-radius: var(--radius-lg) !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5) !important;
+  color: var(--ink) !important;
+}
+body:not(.theme-light) .object-token:hover {
+  border-color: rgba(52, 211, 153, 0.45) !important;
+  background: rgba(52, 211, 153, 0.05) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), var(--glow-green) !important;
+}
+body:not(.theme-light) .object-token.selected {
+  border-color: var(--accent) !important;
+  background: rgba(16, 185, 129, 0.08) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), var(--glow-green-strong) !important;
+}
+
+/* Object Card Header, Badges and Watermarks */
+body:not(.theme-light) .object-card-top {
+  background: transparent !important;
+  border: none !important;
+  margin-bottom: 12px !important;
+}
+body:not(.theme-light) .type-badge {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: none !important;
+  border-radius: 4px !important;
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  padding: 2px 8px !important;
+}
+body:not(.theme-light) .object-state {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  border-radius: 4px !important;
+  color: #34d399 !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  padding: 1px 8px !important;
+}
+body:not(.theme-light) .object-token .glyph {
+  color: rgba(52, 211, 153, 0.035) !important; /* Faint watermark */
+  font-size: 84px !important;
+}
+
+/* Tags Inside Object Cards */
+body:not(.theme-light) .mini-tag-label {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(52, 211, 153, 0.15) !important;
+  color: var(--ink) !important;
+  border-radius: 4px !important;
+}
+
+/* 5. Left Column "intent cards" (intent, target, resources, audit) */
+body:not(.theme-light) .guidance-strip {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border: 1px solid rgba(245, 158, 11, 0.22) !important;
+  color: #fbbf24 !important;
+}
+body:not(.theme-light) .guidance-strip .label {
+  color: #fbbf24 !important;
+  opacity: 0.8 !important;
+}
+
+/* Done step history items styling */
+body:not(.theme-light) .step-item.done {
+  border-color: rgba(16, 185, 129, 0.2) !important;
+  background: rgba(16, 185, 129, 0.04) !important;
+  color: #34d399 !important;
+}
+body:not(.theme-light) .step-item.active {
+  border-color: rgba(52, 211, 153, 0.3) !important;
+  background: rgba(52, 211, 153, 0.08) !important;
+  color: #a7f3d0 !important;
+}
+
+
 
 
 
