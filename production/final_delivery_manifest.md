@@ -3,7 +3,7 @@
 日期：2026-06-10
 项目：Echo-String: Genesis Prototype
 仓库：`Lunora-Gather/echo-string-genesis-prototype`
-网页试玩：<https://wangjiehu.github.io/echo-string-genesis-prototype/>
+网页试玩：<https://lunora-gather.github.io/echo-string-genesis-prototype/>
 
 ## 交付范围
 
