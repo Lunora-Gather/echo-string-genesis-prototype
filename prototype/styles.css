@@ -2742,6 +2742,376 @@ body:not(.regression-mode) .bottom-panel {
   box-shadow: 0 14px 38px rgba(101, 221, 179, 0.16);
 }
 
+/* Light theme is an editorial parchment surface, not an inverted dark UI. */
+body.theme-light {
+  --bg: #eee7d8;
+  --bg-elevated: rgba(255, 252, 244, 0.9);
+  --bg-panel: rgba(250, 246, 235, 0.84);
+  --bg-panel-solid: #fbf7ed;
+  --bg-soft: rgba(224, 214, 195, 0.58);
+  --bg-quiet: rgba(89, 72, 48, 0.035);
+  --ink: #39372f;
+  --ink-strong: #171c18;
+  --muted: #766f61;
+  --muted-2: #9a907e;
+  --line: rgba(71, 76, 63, 0.13);
+  --line-strong: rgba(71, 76, 63, 0.27);
+  --accent: #236c58;
+  --accent-strong: #174f41;
+  --accent-soft: rgba(35, 108, 88, 0.1);
+  --amber: #a56824;
+  --amber-soft: rgba(165, 104, 36, 0.1);
+  --blue: #356f8b;
+  --blue-soft: rgba(53, 111, 139, 0.09);
+  --good: #23715a;
+  --warn: #9b641f;
+  --bad: #b14c42;
+  --focus: #236c58;
+  --shadow: rgba(69, 54, 34, 0.08);
+  --shadow-strong: rgba(69, 54, 34, 0.18);
+  color-scheme: light;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(255, 255, 255, 0.7), transparent 34%),
+    linear-gradient(180deg, rgba(248, 244, 234, 0.82), rgba(234, 226, 210, 0.94)),
+    url("./light_parchment_bg.png") center / cover fixed;
+}
+
+body.theme-light::before {
+  background:
+    radial-gradient(circle at 50% -18%, rgba(255, 255, 255, 0.5), transparent 52%),
+    linear-gradient(90deg, rgba(101, 78, 48, 0.06), transparent 23% 77%, rgba(101, 78, 48, 0.06));
+}
+
+body.theme-light .screen-effects-overlay {
+  opacity: 0.11;
+  background:
+    linear-gradient(rgba(80, 86, 70, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 86, 70, 0.032) 1px, transparent 1px);
+  background-size: 52px 52px;
+}
+
+body.theme-light .title-block h1 {
+  color: #19201b;
+  text-shadow: 0 10px 28px rgba(82, 63, 38, 0.12);
+}
+
+body.theme-light .eyebrow {
+  color: #236c58;
+}
+
+body.theme-light .build-pill {
+  border-color: rgba(35, 108, 88, 0.22);
+  color: #236c58;
+  background: rgba(35, 108, 88, 0.07);
+}
+
+body.theme-light .topbar-controls {
+  border-color: rgba(71, 76, 63, 0.12);
+  background:
+    linear-gradient(110deg, rgba(255, 255, 255, 0.64), transparent 58%),
+    rgba(248, 244, 233, 0.78);
+  box-shadow:
+    0 18px 48px rgba(72, 55, 34, 0.08),
+    inset 0 1px rgba(255, 255, 255, 0.72);
+}
+
+body.theme-light .theme-toggle-btn,
+body.theme-light .settings-toggle-btn,
+body.theme-light .quiet-button,
+body.theme-light .mode-button,
+body.theme-light .action-button,
+body.theme-light .tag-chip,
+body.theme-light .inventory-token,
+body.theme-light .zone-item,
+body.theme-light .settings-zone-btn {
+  border-color: rgba(71, 76, 63, 0.12);
+  color: #3c4038;
+  background: rgba(255, 252, 244, 0.68);
+}
+
+body.theme-light .theme-toggle-btn:hover,
+body.theme-light .settings-toggle-btn:hover,
+body.theme-light .quiet-button:hover,
+body.theme-light .action-button:hover,
+body.theme-light .tag-chip:hover,
+body.theme-light .inventory-token:hover,
+body.theme-light .zone-item:hover,
+body.theme-light .settings-zone-btn:hover {
+  border-color: rgba(35, 108, 88, 0.34);
+  color: #174f41;
+  background: rgba(35, 108, 88, 0.08);
+}
+
+body.theme-light .mode-switch {
+  border-color: rgba(71, 76, 63, 0.13);
+  background: rgba(90, 72, 48, 0.055);
+}
+
+body.theme-light .mode-button {
+  border-color: transparent;
+  background: transparent;
+}
+
+body.theme-light .mode-button.active,
+body.theme-light .action-button.primary {
+  color: #fffdf7;
+  background: #236c58;
+  box-shadow: 0 8px 24px rgba(35, 108, 88, 0.16);
+}
+
+body.theme-light .status-card {
+  border-color: rgba(71, 76, 63, 0.1);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.55), transparent),
+    rgba(249, 245, 235, 0.72);
+}
+
+body.theme-light .status-card strong {
+  color: #20251f;
+}
+
+body.theme-light .status-meter {
+  background: rgba(62, 70, 58, 0.1);
+}
+
+body.theme-light .session-panel {
+  border-color: rgba(71, 76, 63, 0.11);
+  background: rgba(247, 242, 231, 0.69);
+}
+
+body.theme-light .session-chip.wide {
+  color: #3b4038;
+}
+
+body.theme-light .panel,
+body.theme-light .stage-panel {
+  border-color: rgba(71, 76, 63, 0.13);
+  box-shadow:
+    0 24px 64px rgba(74, 57, 36, 0.09),
+    inset 0 1px rgba(255, 255, 255, 0.66);
+}
+
+body.theme-light .panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.38), transparent 48%),
+    rgba(247, 243, 233, 0.82);
+}
+
+body.theme-light .stage-panel {
+  background:
+    linear-gradient(180deg, rgba(35, 108, 88, 0.035), transparent 34%),
+    rgba(250, 247, 238, 0.88);
+}
+
+body.theme-light .tactical-deck {
+  border-color: rgba(71, 76, 63, 0.1);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.52), transparent 58%),
+    rgba(241, 235, 221, 0.42);
+}
+
+body.theme-light .stage-header h2,
+body.theme-light h2,
+body.theme-light h3 {
+  color: #1b211c;
+}
+
+body.theme-light .objective {
+  border-color: rgba(71, 76, 63, 0.2);
+  color: #6d665a;
+}
+
+body.theme-light .mastery-challenge {
+  border-color: rgba(165, 104, 36, 0.22);
+  background:
+    linear-gradient(110deg, rgba(165, 104, 36, 0.1), transparent),
+    rgba(255, 252, 244, 0.56);
+}
+
+body.theme-light .mastery-challenge .label {
+  color: #955e20;
+}
+
+body.theme-light .discovery-chip {
+  border-color: rgba(71, 76, 63, 0.11);
+  background: rgba(255, 252, 244, 0.52);
+}
+
+body.theme-light .discovery-chip.discovered {
+  border-color: rgba(35, 108, 88, 0.3);
+  background: rgba(35, 108, 88, 0.08);
+}
+
+body.theme-light .result-pulse {
+  border-color: rgba(35, 108, 88, 0.2);
+  background: rgba(35, 108, 88, 0.065);
+}
+
+body.theme-light .result-pulse.good {
+  border-color: rgba(35, 113, 90, 0.28);
+  background: rgba(35, 113, 90, 0.075);
+}
+
+body.theme-light .result-pulse.warn {
+  border-color: rgba(155, 100, 31, 0.3);
+  background: rgba(155, 100, 31, 0.075);
+}
+
+body.theme-light .result-pulse.bad {
+  border-color: rgba(177, 76, 66, 0.3);
+  background: rgba(177, 76, 66, 0.07);
+}
+
+body.theme-light .action-group {
+  border-color: rgba(71, 76, 63, 0.1);
+  background: rgba(255, 252, 244, 0.46);
+}
+
+body.theme-light .action-group.has-ready {
+  border-color: rgba(35, 108, 88, 0.25);
+}
+
+body.theme-light .scene-map {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(35, 108, 88, 0.05), transparent 44%),
+    linear-gradient(rgba(75, 82, 69, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(75, 82, 69, 0.04) 1px, transparent 1px),
+    rgba(239, 233, 219, 0.32);
+  background-size: auto, 64px 64px, 64px 64px, auto;
+}
+
+body.theme-light .object-token {
+  border-color: rgba(71, 76, 63, 0.15);
+  background:
+    radial-gradient(circle at 100% 100%, rgba(35, 108, 88, 0.07), transparent 44%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(242, 236, 222, 0.58) 62%),
+    #f5f0e4;
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.8),
+    0 18px 38px rgba(73, 56, 35, 0.08);
+}
+
+body.theme-light .object-token:hover {
+  border-color: rgba(35, 108, 88, 0.4);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.88),
+    0 24px 46px rgba(73, 56, 35, 0.13);
+}
+
+body.theme-light .object-token.selected {
+  border-color: rgba(35, 108, 88, 0.62);
+  background:
+    radial-gradient(circle at 100% 100%, rgba(35, 108, 88, 0.12), transparent 46%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(226, 236, 225, 0.72) 64%),
+    #f5f1e5;
+  box-shadow:
+    inset 0 0 0 1px rgba(35, 108, 88, 0.07),
+    0 24px 48px rgba(54, 77, 62, 0.13);
+}
+
+body.theme-light .object-token.recommended {
+  border-color: rgba(165, 104, 36, 0.5);
+}
+
+body.theme-light .object-token strong {
+  color: #1c231e;
+}
+
+body.theme-light .glyph {
+  color: rgba(46, 76, 61, 0.085);
+}
+
+body.theme-light .type-badge,
+body.theme-light .object-state,
+body.theme-light .mini-tag-label,
+body.theme-light .slot-chip {
+  border-color: rgba(71, 76, 63, 0.12);
+  color: #596157;
+  background: rgba(255, 252, 244, 0.64);
+}
+
+body.theme-light .object-state {
+  color: #236c58;
+  background: rgba(35, 108, 88, 0.07);
+}
+
+body.theme-light #inspector,
+body.theme-light .inventory-list,
+body.theme-light .event-log,
+body.theme-light .reflection-box,
+body.theme-light .metrics-box,
+body.theme-light .preview-box,
+body.theme-light .scan-gate,
+body.theme-light .boss-phase-plan,
+body.theme-light .zone-summary-table {
+  border-color: rgba(71, 76, 63, 0.12);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.46), transparent),
+    rgba(248, 244, 234, 0.56);
+}
+
+body.theme-light .tag-chip,
+body.theme-light .inventory-token {
+  border-color: rgba(71, 76, 63, 0.13);
+  background: rgba(255, 252, 244, 0.68);
+}
+
+body.theme-light .tag-chip.selected,
+body.theme-light .inventory-token.selected {
+  border-color: rgba(35, 108, 88, 0.46);
+  background: rgba(35, 108, 88, 0.09);
+}
+
+body.theme-light .zone-item {
+  border-color: transparent;
+  background: rgba(255, 252, 244, 0.46);
+}
+
+body.theme-light .zone-item.active {
+  border-color: rgba(35, 108, 88, 0.34);
+  background:
+    radial-gradient(circle at 0 50%, rgba(35, 108, 88, 0.13), transparent 74%),
+    rgba(255, 252, 244, 0.72);
+}
+
+body.theme-light .zone-item.complete {
+  border-color: rgba(35, 113, 90, 0.28);
+}
+
+body.theme-light .hp-bar,
+body.theme-light .boss-gauge,
+body.theme-light .shield-pips i {
+  border-color: rgba(71, 76, 63, 0.13);
+  background: rgba(71, 76, 63, 0.08);
+}
+
+body.theme-light:not(.regression-mode) .bottom-panel {
+  border-color: rgba(71, 76, 63, 0.16);
+  background: rgba(250, 247, 239, 0.96);
+}
+
+body.theme-light .settings-panel,
+body.theme-light .prologue-overlay {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(35, 108, 88, 0.1), transparent 36%),
+    rgba(226, 216, 198, 0.78);
+}
+
+body.theme-light .settings-box,
+body.theme-light .prologue-box {
+  border-color: rgba(71, 76, 63, 0.2);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.66), transparent 48%),
+    rgba(250, 247, 238, 0.97);
+  box-shadow:
+    0 40px 100px rgba(74, 57, 36, 0.2),
+    inset 0 1px rgba(255, 255, 255, 0.8);
+}
+
+body.theme-light .prologue-line {
+  color: #4f4b42;
+}
+
 @media (max-width: 1240px) {
   .app-shell {
     padding: 16px;

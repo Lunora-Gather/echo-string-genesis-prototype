@@ -22,7 +22,7 @@ for (const mode of ["guided", "low", "debug"]) {
   if (!html.includes(`data-mode="${mode}"`)) fail(`missing mode button: ${mode}`);
 }
 
-if (!html.includes("app.js?v=1.0.0")) fail("index.html script cache key is not 1.0.0");
+if (!html.includes("app.js?v=1.0.1")) fail("index.html script cache key is not 1.0.1");
 if (!html.includes("regression.js?v=1.0.0")) fail("index.html regression cache key is not 1.0.0");
 if (!html.includes("1.0.0 Public Playtest")) fail("index.html build pill is not 1.0.0");
 if (!ids.has("decisionStrip")) fail("decision strip node missing");
