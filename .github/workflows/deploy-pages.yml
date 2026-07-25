@@ -34,7 +34,7 @@ jobs:
           test -f prototype/app.js
           test -f prototype/regression.js
           test -f prototype/styles.css
-          grep -q "app.js?v=1.0.0" prototype/index.html
+          grep -q "app.js?v=1.0.1" prototype/index.html
           grep -q "regression.js?v=1.0.0" prototype/index.html
           grep -q "1.0.0 Public Playtest" prototype/index.html
 

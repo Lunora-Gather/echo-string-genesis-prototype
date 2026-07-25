@@ -407,8 +407,8 @@ function triggerVisualRipple(reactionId, targetId) {
 
 const TEST_MODES = {
   guided: "引导",
-  low: "低引导",
-  debug: "调试"
+  low: "探索",
+  debug: "沙盒"
 };
 
 const BUILD_LABEL = "1.0.0";
@@ -449,6 +449,22 @@ const LOW_OBJECTIVES = {
   Z5: "让碎片按正确方向移动，形成临时桥面。",
   Z6: "逐层拆开守卫护文，再处理裸露核心。",
   Z7: "查看切片结果并复盘本轮路径。"
+};
+
+const REACTION_DISCOVERIES = [
+  { key: "SteamBurst", name: "蒸汽爆发", formula: "过热 + 潮湿", clue: "温度与介质会彼此放大。" },
+  { key: "FractureWindow", name: "破裂窗口", formula: "冻结 + 脆弱", clue: "低温会让脆弱结构进一步开裂。" },
+  { key: "FieldPulse", name: "力场震荡", formula: "吸引 + 排斥", clue: "相反方向在同一目标上无法共存。" }
+];
+
+const ZONE_MASTERY = {
+  Z1: { name: "一笔破门", detail: "不触发无效操作，完成第一次语义改写。" },
+  Z2: { name: "质量回环", detail: "不触发无效操作，让同一石块先轻后重。" },
+  Z3: { name: "借势拆壳", detail: "至少完成一次弹反，并清理全部游兵。" },
+  Z4: { name: "雾中火花", detail: "发现蒸汽爆发，并完成温室目标。" },
+  Z5: { name: "无词造桥", detail: "不剥离力场柱，直接调度两种方向。" },
+  Z6: { name: "三重校对", detail: "用三种不同反应拆完全部护文。" },
+  Z7: { name: "修正者", detail: "抵达文库并完成本轮复盘。" }
 };
 
 const ZONES = [
@@ -593,6 +609,10 @@ const state = {
   metrics: createMetrics(),
   undoStack: [],
   checkpoints: {},
+  mastery: {
+    earned: {},
+    zoneMistakeBaseline: { Z1: 0 }
+  },
   log: [],
   lastFeedback: null,
   unlockedZones: ["Z1"],
@@ -605,6 +625,8 @@ const el = {
   inventoryCount: document.getElementById("inventoryCount"),
   zoneIndex: document.getElementById("zoneIndex"),
   elapsedValue: document.getElementById("elapsedValue"),
+  resonanceValue: document.getElementById("resonanceValue"),
+  masteryPanel: document.getElementById("masteryPanel"),
   zoneList: document.getElementById("zoneList"),
   zoneTitle: document.getElementById("zoneTitle"),
   zoneObjective: document.getElementById("zoneObjective"),
@@ -829,6 +851,34 @@ function reactionLedger() {
     label: reactionName(`Reaction.${key}`),
     count
   }));
+}
+
+function discoveredReactionCount() {
+  return REACTION_DISCOVERIES.filter((item) => state.metrics.reactionCounts[item.key] > 0).length;
+}
+
+function zoneMistakes(zoneId = zone().id) {
+  const baseline = state.mastery.zoneMistakeBaseline[zoneId] ?? 0;
+  return Math.max(0, state.metrics.warnings + state.metrics.blockedActions - baseline);
+}
+
+function masteryEligible(zoneId = zone().id) {
+  if (!zone().complete(state)) return false;
+  if (zoneId === "Z3") return state.metrics.parries > 0 && zoneMistakes(zoneId) === 0;
+  if (zoneId === "Z4") return state.metrics.reactionCounts.SteamBurst > 0 && zoneMistakes(zoneId) === 0;
+  if (zoneId === "Z5") return zoneMistakes(zoneId) === 0;
+  if (zoneId === "Z6") {
+    return new Set(state.metrics.bossPhaseCounters.map((item) => item.reaction)).size >= 3 && zoneMistakes(zoneId) === 0;
+  }
+  return zoneMistakes(zoneId) === 0;
+}
+
+function awardZoneMastery(zoneId = zone().id) {
+  if (state.mastery.earned[zoneId] || !masteryEligible(zoneId)) return false;
+  state.mastery.earned[zoneId] = true;
+  state.ink = Math.min(state.maxInk, state.ink + 2);
+  log(`区域精通：${ZONE_MASTERY[zoneId]?.name || zoneId}。奖励 2 点原墨。`, "good", "mastery");
+  return true;
 }
 
 function failureLabel(category) {
@@ -1472,6 +1522,7 @@ function formBridge() {
 function nextZone() {
   if (!zone().complete(state)) return log("当前目标还没完成。", "warn");
   if (isFinalZone()) return log("切片已经完成。", "good");
+  awardZoneMastery();
   if (!state.metrics.zoneCompletions.some((item) => item.zone === zone().id)) {
     state.metrics.zoneCompletions.push({ zone: zone().id, t: elapsedSeconds() });
   }
@@ -1493,6 +1544,7 @@ function nextZone() {
     
     const zoneId = zone().id;
     state.metrics.zoneVisits[zoneId] = (state.metrics.zoneVisits[zoneId] || 0) + 1;
+    state.mastery.zoneMistakeBaseline[zoneId] = state.metrics.warnings + state.metrics.blockedActions;
     if (isFinalZone()) state.metrics.completedAt = state.metrics.completedAt ?? elapsedSeconds();
     saveZoneCheckpoint(`${zone().id}入口检查点`);
     audio.playSfx("success");
@@ -1517,6 +1569,10 @@ function resetGame() {
   state.metrics = createMetrics(mode);
   state.undoStack = [];
   state.checkpoints = {};
+  state.mastery = {
+    earned: {},
+    zoneMistakeBaseline: { Z1: 0 }
+  };
   state.log = [];
   state.lastFeedback = null;
   state.completionSfxPlayed = false;
@@ -2112,7 +2168,15 @@ function previewForSelectedObject() {
   if (!obj.scanned) return { tone: "warn", title: "需要扫描", lines: [`先扫描 ${obj.name}，再判断词缀和槽位。`] };
 
   const inventoryTag = state.inventory[state.selectedInventoryIndex];
-  if (inventoryTag) return injectionPreview(obj, inventoryTag);
+  if (inventoryTag) {
+    const preview = injectionPreview(obj, inventoryTag);
+    if (state.testMode !== "low" || preview.tone === "bad") return preview;
+    return {
+      tone: "good",
+      title: `写入检验：${tagName(inventoryTag)} -> ${obj.name}`,
+      lines: ["槽位与对象兼容。写入后的具体结果需要亲自验证。"]
+    };
+  }
   const mechanicHint = z5MechanicHint(obj);
   if (mechanicHint && !state.selectedTagId) {
     return { tone: "warn", title: "机关解读", lines: [mechanicHint, "观察碎片是否向桥中央或锚点移动，再决定下一步。"] };
@@ -2182,6 +2246,7 @@ function renderStatusMeters() {
   document.body.style.setProperty("--inventory-pct", `${Math.max(0, Math.min(1, state.inventory.length / 3)) * 100}%`);
   document.body.style.setProperty("--zone-pct", `${Math.max(0, Math.min(1, zonePct)) * 100}%`);
   document.body.style.setProperty("--time-pct", `${timePct * 100}%`);
+  document.body.style.setProperty("--resonance-pct", `${discoveredReactionCount() / REACTION_DISCOVERIES.length * 100}%`);
 }
 
 function ensureGuidedSelection() {
@@ -2249,11 +2314,13 @@ function render() {
   el.inventoryCount.textContent = `${state.inventory.length}/3`;
   el.zoneIndex.textContent = zone().id;
   el.elapsedValue.textContent = formatTime(state.metrics.completedAt ?? elapsedSeconds());
+  if (el.resonanceValue) el.resonanceValue.textContent = `${discoveredReactionCount()}/${REACTION_DISCOVERIES.length}`;
   el.nextHint.textContent = nextHint();
   renderZones();
   renderSteps();
   renderResultPulse();
   renderDecisionStrip();
+  renderMasteryPanel();
   renderStage();
   renderInspector();
   renderInventory();
@@ -2263,6 +2330,33 @@ function render() {
   renderCompletionPanel();
   el.reflectionBox.textContent = zone().reflection;
   renderReportData();
+}
+
+function renderMasteryPanel() {
+  if (!el.masteryPanel) return;
+  const zoneId = zone().id;
+  const challenge = ZONE_MASTERY[zoneId];
+  const earned = Boolean(state.mastery.earned[zoneId]);
+  const ready = masteryEligible(zoneId);
+  const discoveries = REACTION_DISCOVERIES.map((item) => {
+    const discovered = state.metrics.reactionCounts[item.key] > 0;
+    const name = discovered ? item.name : "未解析共鸣";
+    const detail = discovered
+      ? item.formula
+      : state.testMode === "guided"
+        ? item.clue
+        : "让不同槽位的词在同一目标上发生冲突。";
+    return `<span class="discovery-chip ${discovered ? "discovered" : "locked"}"><b>${discovered ? "◆" : "◇"}</b><i><strong>${name}</strong><small>${detail}</small></i></span>`;
+  }).join("");
+  const challengeState = earned ? "已精通" : ready ? "待结算" : `${zoneMistakes(zoneId)} 次失误`;
+  el.masteryPanel.innerHTML = `
+    <div class="mastery-challenge ${earned ? "earned" : ready ? "ready" : ""}">
+      <span class="label">本区试炼 · ${challengeState}</span>
+      <strong>${challenge?.name || "自由探索"}</strong>
+      <small>${challenge?.detail || "观察语义反应并完成区域。"}</small>
+    </div>
+    <div class="discovery-ledger" aria-label="已发现组合反应">${discoveries}</div>
+  `;
 }
 
 function renderDecisionStrip() {
@@ -2362,6 +2456,7 @@ function renderStage() {
     const button = document.createElement("button");
     button.className = [
       "object-token",
+      ...obj.currentTags.map((tagId) => `semantic-${tagId.split(".").slice(-1)[0].toLowerCase()}`),
       obj.id === state.selectedObjectId ? "selected" : "",
       recommendedIds.includes(obj.id) ? "recommended" : "",
       objectCanAcceptSelectedInventory(obj) ? "compatible" : "",

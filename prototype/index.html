@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=1.0.3" />
+    <link rel="stylesheet" href="./styles.css?v=1.0.4" />
   </head>
   <body>
     <!-- Screen Effects Overlay -->
@@ -87,10 +87,10 @@
             <button id="toggleLogsBtn" class="theme-toggle-btn" type="button" aria-label="历史日志">📜 日志</button>
             <button id="themeToggleBtn" class="theme-toggle-btn" type="button" aria-label="切换主题">🌗 主题</button>
             <button id="settingsBtn" class="settings-toggle-btn" type="button" aria-label="游戏配置">⚙️ 配置</button>
-            <div class="mode-switch" aria-label="测试模式">
+            <div class="mode-switch" aria-label="玩法模式">
               <button class="mode-button active" type="button" data-mode="guided" data-testid="mode-guided" aria-pressed="true">引导</button>
-              <button class="mode-button" type="button" data-mode="low" data-testid="mode-low" aria-pressed="false">低引导</button>
-              <button class="mode-button" type="button" data-mode="debug" data-testid="mode-debug" aria-pressed="false">调试</button>
+              <button class="mode-button" type="button" data-mode="low" data-testid="mode-low" aria-pressed="false">探索</button>
+              <button class="mode-button" type="button" data-mode="debug" data-testid="mode-debug" aria-pressed="false">沙盒</button>
             </div>
           </div>
           <div class="status-strip" aria-label="玩家状态">
@@ -112,6 +112,11 @@
             <div class="status-card time-card">
               <span>用时</span>
               <strong id="elapsedValue">0:00</strong>
+              <i class="status-meter"><b></b></i>
+            </div>
+            <div class="status-card resonance-card">
+              <span>共鸣</span>
+              <strong id="resonanceValue">0/3</strong>
               <i class="status-meter"><b></b></i>
             </div>
           </div>
@@ -149,6 +154,7 @@
               </div>
               <p id="zoneObjective" class="objective"></p>
             </div>
+            <div id="masteryPanel" class="mastery-panel" aria-label="语义图谱与区域精通"></div>
             <div class="guidance-strip">
               <span class="label">下一步</span>
               <strong id="nextHint">选择场景中的对象。</strong>
@@ -207,7 +213,7 @@
     </main>
 
     <script id="reportData" type="application/json"></script>
-    <script src="./app.js?v=1.0.0" defer></script>
+    <script src="./app.js?v=1.0.1" defer></script>
     <script src="./regression.js?v=1.0.0" defer></script>
   </body>
 </html>
