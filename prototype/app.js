@@ -315,12 +315,11 @@ function loadGameFromLocal() {
       state.flags = parsed.flags || {};
       state.unlockedZones = parsed.unlockedZones || ["Z1"];
       state.theme = parsed.theme || "dark";
-      const urlLanguage = new URLSearchParams(window.location.search).get("lang");
-      state.language = LANGUAGES[urlLanguage]
-        ? urlLanguage
-        : LANGUAGES[parsed.language]
-          ? parsed.language
-          : state.language;
+      const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
+      const urlLanguage = requestedLanguage
+        ? (LANGUAGES[requestedLanguage] ? requestedLanguage : "zh-Hans")
+        : null;
+      state.language = urlLanguage || (LANGUAGES[parsed.language] ? parsed.language : state.language);
       state.zones = freshZones();
       state.flags = { ...state.flags, ...parsed.flags };
       applyTheme();
@@ -476,8 +475,7 @@ const ZONE_MASTERY = {
 
 const LANGUAGES = {
   "zh-Hans": { label: "简", htmlLang: "zh-CN", title: "语弦生态：断句庭院灰盒原型" },
-  "zh-Hant": { label: "繁", htmlLang: "zh-Hant", title: "語弦生態：斷句庭院灰盒原型" },
-  en: { label: "EN", htmlLang: "en", title: "Echo-String: Duanju Courtyard Prototype" }
+  "zh-Hant": { label: "繁", htmlLang: "zh-Hant", title: "語弦生態：斷句庭院灰盒原型" }
 };
 
 const EN_EXACT = {
@@ -905,7 +903,7 @@ function toEnglish(source) {
 
 function localizeText(source) {
   if (!source || state.language === "zh-Hans") return source;
-  return state.language === "zh-Hant" ? toTraditional(source) : toEnglish(source);
+  return toTraditional(source);
 }
 
 function setLanguage(language) {
@@ -1281,7 +1279,7 @@ function applyInitialModeFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const mode = params.get("mode");
   const language = params.get("lang");
-  if (LANGUAGES[language]) state.language = language;
+  if (language) state.language = LANGUAGES[language] ? language : "zh-Hans";
   if (!TEST_MODES[mode] || state.testMode === mode) return;
   state.testMode = mode;
   state.metrics.testMode = mode;

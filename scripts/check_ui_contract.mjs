@@ -22,7 +22,13 @@ for (const mode of ["guided", "low", "debug"]) {
   if (!html.includes(`data-mode="${mode}"`)) fail(`missing mode button: ${mode}`);
 }
 
-if (!html.includes("app.js?v=1.0.2")) fail("index.html script cache key is not 1.0.2");
+for (const language of ["zh-Hans", "zh-Hant"]) {
+  const count = [...html.matchAll(new RegExp(`data-language="${language}"`, "g"))].length;
+  if (count !== 2) fail(`expected two ${language} language buttons, found ${count}`);
+}
+if (html.includes('data-language="en"')) fail("English language mode should not be exposed");
+
+if (!html.includes("app.js?v=1.0.3")) fail("index.html script cache key is not 1.0.3");
 if (!html.includes("regression.js?v=1.0.1")) fail("index.html regression cache key is not 1.0.1");
 if (!html.includes("1.0.0 Public Playtest")) fail("index.html build pill is not 1.0.0");
 if (!ids.has("decisionStrip")) fail("decision strip node missing");
