@@ -286,7 +286,8 @@ function saveGameToLocal() {
       inventory: state.inventory,
       flags: state.flags,
       unlockedZones: state.unlockedZones || ["Z1"],
-      theme: state.theme
+      theme: state.theme,
+      language: state.language
     };
     const currentZoneId = zone().id;
     if (!saveData.unlockedZones.includes(currentZoneId)) {
@@ -314,6 +315,12 @@ function loadGameFromLocal() {
       state.flags = parsed.flags || {};
       state.unlockedZones = parsed.unlockedZones || ["Z1"];
       state.theme = parsed.theme || "dark";
+      const urlLanguage = new URLSearchParams(window.location.search).get("lang");
+      state.language = LANGUAGES[urlLanguage]
+        ? urlLanguage
+        : LANGUAGES[parsed.language]
+          ? parsed.language
+          : state.language;
       state.zones = freshZones();
       state.flags = { ...state.flags, ...parsed.flags };
       applyTheme();
@@ -462,10 +469,493 @@ const ZONE_MASTERY = {
   Z2: { name: "质量回环", detail: "不触发无效操作，让同一石块先轻后重。" },
   Z3: { name: "借势拆壳", detail: "至少完成一次弹反，并清理全部游兵。" },
   Z4: { name: "雾中火花", detail: "发现蒸汽爆发，并完成温室目标。" },
-  Z5: { name: "无词造桥", detail: "不剥离力场柱，直接调度两种方向。" },
+  Z5: { name: "双路造桥", detail: "直接调度机关，或把相反力场写入碎片制造震荡。" },
   Z6: { name: "三重校对", detail: "用三种不同反应拆完全部护文。" },
   Z7: { name: "修正者", detail: "抵达文库并完成本轮复盘。" }
 };
+
+const LANGUAGES = {
+  "zh-Hans": { label: "简", htmlLang: "zh-CN", title: "语弦生态：断句庭院灰盒原型" },
+  "zh-Hant": { label: "繁", htmlLang: "zh-Hant", title: "語弦生態：斷句庭院灰盒原型" },
+  en: { label: "EN", htmlLang: "en", title: "Echo-String: Duanju Courtyard Prototype" }
+};
+
+const EN_EXACT = {
+  "断句庭院灰盒原型": "Duanju Courtyard Prototype",
+  "地图": "Map",
+  "日志": "Log",
+  "亮色": "Light",
+  "暗色": "Dark",
+  "主题": "Theme",
+  "配置": "Settings",
+  "引导": "Guided",
+  "探索": "Explore",
+  "沙盒": "Sandbox",
+  "原墨": "Ink",
+  "词库": "Lexicon",
+  "区域": "Zone",
+  "用时": "Time",
+  "共鸣": "Resonance",
+  "恢复建议": "Recovery",
+  "分享": "Share",
+  "撤销": "Undo",
+  "检查点": "Checkpoint",
+  "重开本轮": "Restart",
+  "流程": "Route",
+  "重置": "Reset",
+  "当前目标": "Objective",
+  "下一步": "Next",
+  "观察": "Observe",
+  "语义": "Semantic",
+  "战斗": "Combat",
+  "机关": "Mechanism",
+  "推进": "Advance",
+  "扫描器": "Scanner",
+  "临时词库": "Temporary Lexicon",
+  "清空": "Clear",
+  "事件日志": "Event Log",
+  "反思提示": "Reflection",
+  "试玩指标": "Playtest Metrics",
+  "补墨": "Refill",
+  "重置区": "Reset Zone",
+  "报告": "Report",
+  "扫描": "Scan",
+  "剥离选中词": "Extract Selected",
+  "注入选中词": "Inject Selected",
+  "重击": "Heavy Strike",
+  "弹反破绽": "Parry",
+  "推动石块": "Move Block",
+  "压住机关": "Press Plate",
+  "聚拢碎片": "Gather Debris",
+  "形成桥面": "Form Bridge",
+  "目标未完成": "Objective Incomplete",
+  "进入下一区域": "Next Zone",
+  "切片完成": "Slice Complete",
+  "当前词缀": "Current Tags",
+  "开放槽位": "Open Slots",
+  "扫描结果": "Scan Result",
+  "无显性词缀": "No visible tags",
+  "已扫描": "Scanned",
+  "未扫描": "Unscanned",
+  "未知": "Unknown",
+  "无锁定槽": "No locked slots",
+  "锁定": "Locked",
+  "词库为空": "Lexicon Empty",
+  "可扫描": "Scannable",
+  "推荐目标": "Recommended",
+  "可取词": "Extractable",
+  "稳定词源": "Stable Source",
+  "可战斗": "Combat Ready",
+  "破绽已开": "Breach Open",
+  "已读取": "Read",
+  "可写入": "Writable",
+  "槽位不符": "Wrong Slot",
+  "槽位锁定": "Slot Locked",
+  "不可作用": "Incompatible",
+  "需扫描": "Scan First",
+  "进行中": "Active",
+  "已达成": "Complete",
+  "待进入": "Locked",
+  "本区试炼": "Zone Trial",
+  "已精通": "Mastered",
+  "待结算": "Ready",
+  "未解析共鸣": "Unresolved Resonance",
+  "已发现组合反应": "Discovered Reactions",
+  "已生效": "Applied",
+  "需调整": "Adjust",
+  "被阻塞": "Blocked",
+  "等待操作": "Awaiting Input",
+  "系统配置 (Settings)": "System Settings",
+  "环境背景垫音 (Ambient BGM)": "Ambient BGM",
+  "系统交互音效 (System SFX)": "System SFX",
+  "清空本地存档 (Reset Save)": "Reset Local Save",
+  "快速旅行 (关卡直接跳转)": "Fast Travel",
+  "建立同步链路": "Establish Sync Link",
+  "模式": "Mode",
+  "本区": "Zone Time",
+  "剥离": "Extract",
+  "注入": "Inject",
+  "反应": "Reactions",
+  "质量": "Quality",
+  "误操作": "Mistakes",
+  "Boss语义": "Boss Edits",
+  "护文反制": "Ward Counters",
+  "首扫": "First Scan",
+  "首取": "First Extract",
+  "首写": "First Inject",
+  "最长区": "Longest Zone",
+  "还没有事件。": "No events yet.",
+  "语义恢复协议 / 001": "SEMANTIC RECOVERY / 001",
+  "旅行地图": "Travel Map",
+  "历史日志": "History Log",
+  "切换主题": "Toggle Theme",
+  "游戏配置": "Game Settings",
+  "语言 / Language": "Language",
+  "玩法模式": "Play Mode",
+  "玩家状态": "Player Status",
+  "试玩会话状态": "Playtest Session",
+  "关闭地图": "Close Map",
+  "关闭扫描器": "Close Scanner",
+  "语义图谱与区域精通": "Semantic Atlas and Zone Mastery",
+  "当前决策摘要": "Current Decision",
+  "区域步骤": "Zone Steps",
+  "场景对象": "Scene Objects",
+  "通关总结": "Completion Summary",
+  "未选择对象": "No Object Selected",
+  "先选择一个场景对象。": "Select a scene object first.",
+  "先选择一个对象。": "Select an object first.",
+  "本地从存档自动载入成功，欢迎回来。": "Local save loaded. Welcome back.",
+  "寻找能改变结构强度的词缀。": "Find a tag that changes structural strength.",
+  "质量会同时影响移动和机关压力。": "Mass affects both movement and pressure.",
+  "战斗目标需要先暴露可改写窗口。": "Expose a rewrite window before editing a combat target.",
+  "温度和介质的组合会改变场面。": "Temperature and medium combinations can reshape the encounter.",
+  "力场方向决定碎片移动结果。": "Field direction determines how debris moves.",
+  "Boss护文会轮换响应不同组合反应。": "The boss wards rotate between different reaction counters.",
+  "切片完成。": "Slice complete.",
+  "当前目标已达成。": "Objective complete.",
+  "先选择对象。": "Select an object first.",
+  "先选择目标。": "Select a target first.",
+  "先选择敌人。": "Select an enemy first.",
+  "先选择注入目标。": "Select an injection target first.",
+  "先扫描目标。": "Scan the target first.",
+  "先点选目标身上的词缀。": "Select a tag on the target first.",
+  "先选择词库中的词缀。": "Select a tag from the lexicon first.",
+  "先聚拢碎片。": "Gather the debris first.",
+  "完成当前目标后可进入下一段。": "Complete the objective to advance.",
+  "敌人才有弹反破绽。": "Only enemies expose parry breaches.",
+  "当前目标不需要重击。": "This target does not need a heavy strike.",
+  "临时词库已满。": "The temporary lexicon is full.",
+  "原墨不足。": "Not enough Ink.",
+  "未知词缀。": "Unknown tag.",
+  "目标当前没有这个可剥离词缀。": "The target does not currently expose this extractable tag.",
+  "门": "G", "像": "S", "石": "B", "机": "M", "敌": "E", "台": "L", "水": "W", "火": "F",
+  "引": "A", "斥": "R", "桥": "B", "守": "W", "冰": "I", "裂": "C", "库": "A",
+  "世界由原初作者写就，却在失去维护后分崩离析。": "The world was written by its First Author, then fractured when its maintenance ceased.",
+  "“重词污染”与“语义冲突”正疯狂蚕食着仅存的物性规则。": "Word pollution and semantic conflicts are consuming the last surviving laws of matter.",
+  "作为流淌着空白原墨的“异墨者 · 楷”，你将能够读取并修改物体的底层语义。": "As Kai, an Inkborn carrying blank primal ink, you can read and rewrite the semantics beneath all things.",
+  "请穿过故障的“断句庭院”，剥离、注入和重写代码，完成原初修复考验。": "Cross the corrupted Duanju Courtyard. Extract, inject, and rewrite its rules to complete the restoration trial.",
+  "点击下方按钮建立同步链路，重塑万物法则。": "Establish the sync link and begin reshaping the laws of the world.",
+  "《语弦生态：创世纪》叙事恢复接口 v1.1.0": "Echo-String: Genesis / Narrative Recovery Interface v1.1.0",
+  "选择场景中的对象，然后扫描。": "Select an object in the scene, then scan it.",
+  "选择场景对象后开始扫描。": "Select a scene object to begin scanning.",
+  "选择封文大门或裂纹石像开始。": "Select the Sealed Gate or Cracked Statue to begin.",
+  "当前对象未扫描，先确认词缀和槽位。": "This object is unscanned. Reveal its tags and slots first.",
+  "当前没有明显阻塞。": "No obvious blockers.",
+  "目标已达成，推进到下一段。": "Objective complete. Advance to the next section.",
+  "从对象取词后会显示在这里。": "Extracted tags appear here.",
+  "扫描推荐目标，点选词缀并剥离。下一步写入目标会在场景中高亮。": "Scan the recommended target, select a tag, and extract it. Writable targets will then be highlighted.",
+  "扫描后显示词缀、槽位和取写成本。": "Scanning reveals tags, slots, and rewrite costs.",
+  "当前只知道对象轮廓。先执行“扫描”，再决定剥离、注入或攻击。": "Only the object's outline is known. Scan it before extracting, injecting, or attacking.",
+  "点选目标身上的词缀可查看剥离预览；点选词库词缀可查看写入预览。": "Select a tag on the target to preview extraction, or a lexicon tag to preview injection.",
+  "打开被封住的庭院入口。": "Open the sealed courtyard entrance.",
+  "让石块先移动，再让机关获得足够重量。": "Move the block first, then restore enough weight to trigger the plate.",
+  "清理断廊游兵，观察防御状态怎么影响伤害。": "Clear the corridor patrol and observe how defensive semantics change damage.",
+  "解除冰封，并利用环境反应改变战斗局面。": "Break the freeze and use environmental reactions to reshape combat.",
+  "让碎片按正确方向移动，形成临时桥面。": "Move the debris in the right directions to form a temporary bridge.",
+  "逐层拆开守卫护文，再处理裸露核心。": "Counter each ward layer, then rewrite the exposed core.",
+  "查看切片结果并复盘本轮路径。": "Review the slice and your route.",
+  "从裂纹石像剥离“脆弱”，注入封文大门，再用重击破门。": "Extract “Fragile” from the Cracked Statue, inject it into the Sealed Gate, then break through with a heavy strike.",
+  "把压机关石变轻后推到机关板，再恢复沉重压住机关。": "Make the Pressure Block lightweight, move it onto the plate, then restore Heavy to hold the mechanism down.",
+  "通过弹反或重击打开语义破绽，剥离坚固或注入脆弱击败游兵。": "Open a semantic breach with a parry or heavy strike, then remove Solid or inject Fragile to defeat the patrol.",
+  "用过热解除冰封，再把过热与潮湿组合成蒸汽爆发。": "Use Overheated to thaw the lift, then combine Overheated and Wet to trigger Steam Burst.",
+  "用吸引聚拢碎片，再用排斥推入锚点形成桥面。": "Gather debris with Attract, then push it into the anchors with Repel—or discover a semantic shortcut.",
+  "用环境词缀削掉三层护文，结构槽开放后注入脆弱并重击核心。": "Counter three ward layers with environmental tags, then inject Fragile into the exposed Structure Slot and strike the core.",
+  "切片完成。这里只展示后期系统伏笔，不解锁新机制。": "Slice complete. This threshold foreshadows later systems without introducing another rule.",
+  "第一段只验证最小闭环：看见词、取走词、写入词、看到世界变化。": "The opening teaches the smallest loop: read a word, take it, write it, and watch the world change.",
+  "质量词不能只像钥匙。轻盈负责移动，沉重负责产生压力。": "Mass tags are not keys: Lightweight enables movement, while Heavy creates pressure.",
+  "战斗里只显示关键槽位，避免玩家被数据库淹没。": "Combat exposes only meaningful slots so the player can reason instead of reading a database.",
+  "潮湿必须马上接上反应收益，否则它会被玩家误认为弱词。": "Wet needs an immediate reaction payoff or it will feel like a weak tag.",
+  "物理谜题必须少量关键碎片，失控时宁可重置，不靠玩家忍耐。": "Physical puzzles should use a few meaningful pieces and offer recovery instead of demanding patience.",
+  "Boss不是背词表考试。每阶段只问玩家一个问题：我该从环境取什么词反制它？": "The boss is not a vocabulary exam. Each phase asks one question: which environmental tag counters this ward?",
+  "结尾不再加新规则，让玩家带着刚建立的理解离开。": "The ending adds no new rule, letting the player leave with a clear mental model.",
+  "一笔破门": "One-Stroke Breach",
+  "质量回环": "Mass Loop",
+  "借势拆壳": "Turn the Shell",
+  "雾中火花": "Spark in the Mist",
+  "双路造桥": "Two-Path Bridge",
+  "三重校对": "Triple Revision",
+  "修正者": "The Reviser",
+  "不触发无效操作，完成第一次语义改写。": "Complete the first rewrite without an invalid action.",
+  "不触发无效操作，让同一石块先轻后重。": "Make the same block light, then heavy, without an invalid action.",
+  "至少完成一次弹反，并清理全部游兵。": "Land at least one parry and clear every patrol.",
+  "发现蒸汽爆发，并完成温室目标。": "Discover Steam Burst and complete the conservatory.",
+  "直接调度机关，或把相反力场写入碎片制造震荡。": "Operate the mechanism directly, or write opposing fields into the debris to create a pulse.",
+  "用三种不同反应拆完全部护文。": "Break every ward with three distinct reactions.",
+  "抵达文库并完成本轮复盘。": "Reach the archive and review the run.",
+  "温度与介质会彼此放大。": "Temperature and medium can amplify each other.",
+  "低温会让脆弱结构进一步开裂。": "Cold deepens cracks in fragile structures.",
+  "相反方向在同一目标上无法共存。": "Opposing directions cannot coexist on one target.",
+  "让不同槽位的词在同一目标上发生冲突。": "Create a conflict between different semantic slots on one target.",
+  "阻断通路或机关，需要替换结构词。": "Blocks a route or mechanism; replace its Structure tag.",
+  "让目标更难破坏，战斗中优先考虑剥离。": "Makes a target harder to break; consider extracting it in combat.",
+  "让结构更容易被重击破坏。": "Makes structures easier to destroy with heavy strikes.",
+  "增加重量，可压机关但移动困难。": "Adds weight: useful for plates, difficult to move.",
+  "降低重量，便于推动或击飞。": "Reduces weight, enabling movement and knockback.",
+  "提供热源，可融冰并触发蒸汽。": "Provides heat that can thaw ice and trigger steam.",
+  "冻结目标，也能制造破裂窗口。": "Freezes a target and can create a Fracture Window.",
+  "自身不强，主要用于和过热组合。": "Weak alone; primarily combines with Overheated.",
+  "把碎片或敌人拉向中心。": "Pulls debris or enemies toward the center.",
+  "把碎片或敌人推离中心。": "Pushes debris or enemies away from the center.",
+  "相反力场在碎片内部坍缩并弹开，桥面一次成形。": "Opposing fields collapse inside the debris and rebound, forming the bridge in one pulse.",
+  "触发组合反应：力场震荡。": "Reaction triggered: Field Pulse."
+};
+
+const EN_TERMS = {
+  "修正文库门槛": "Archive Threshold",
+  "残章中庭": "Fragment Courtyard",
+  "碎桥力场": "Broken Bridge Field",
+  "冻水温室": "Frozen Conservatory",
+  "断廊遭遇": "Broken Corridor",
+  "压机关庭": "Pressure Court",
+  "封文大门": "Sealed Gate",
+  "残章守卫": "Fragment Warden",
+  "裂纹石像": "Cracked Statue",
+  "压机关石": "Pressure Block",
+  "浮字碑": "Floating Glyph Tablet",
+  "地面机关": "Pressure Plate",
+  "字壳游兵A": "Shell Patrol A",
+  "字壳游兵B": "Shell Patrol B",
+  "冰封升降台": "Frozen Lift",
+  "冻结水池": "Frozen Pool",
+  "火盆": "Brazier",
+  "缀刺兽": "Glyphspine Beast",
+  "吸引力场柱": "Attraction Pillar",
+  "排斥力场柱": "Repulsion Pillar",
+  "桥面碎片": "Bridge Debris",
+  "潮湿水纹": "Wet Ripple",
+  "过热火盆": "Overheated Brazier",
+  "冻结残页": "Frozen Page",
+  "吸引残柱": "Attraction Remnant",
+  "排斥残柱": "Repulsion Remnant",
+  "裂纹石碑": "Cracked Tablet",
+  "未授权文库": "Unauthorized Archive",
+  "蒸汽爆发": "Steam Burst",
+  "破裂窗口": "Fracture Window",
+  "力场震荡": "Field Pulse",
+  "封闭": "Closed",
+  "坚固": "Solid",
+  "脆弱": "Fragile",
+  "沉重": "Heavy",
+  "轻盈": "Lightweight",
+  "过热": "Overheated",
+  "冻结": "Frozen",
+  "潮湿": "Wet",
+  "吸引": "Attract",
+  "排斥": "Repel",
+  "结构槽": "Structure Slot",
+  "质量槽": "Mass Slot",
+  "温度槽": "Temperature Slot",
+  "介质槽": "Medium Slot",
+  "力场槽": "Field Slot",
+  "石质对象": "Stone",
+  "火源": "Fire Source",
+  "力场柱": "Field Pillar",
+  "碎片": "Debris",
+  "升降台": "Lift",
+  "水体": "Water",
+  "敌人": "Enemy",
+  "门": "Door",
+  "机关": "Mechanism"
+};
+
+const TRADITIONAL_PHRASES = {
+  "断句庭院灰盒原型": "斷句庭院灰盒原型",
+  "语弦生态": "語弦生態",
+  "创世纪": "創世紀",
+  "原初作者": "原初作者",
+  "重词污染": "重詞污染",
+  "语义冲突": "語義衝突",
+  "异墨者": "異墨者",
+  "原墨": "原墨",
+  "词库": "詞庫",
+  "区域": "區域",
+  "用时": "用時",
+  "共鸣": "共鳴",
+  "地图": "地圖",
+  "日志": "日誌",
+  "配置": "設定",
+  "引导": "引導",
+  "探索": "探索",
+  "沙盒": "沙盒",
+  "扫描": "掃描",
+  "剥离": "剝離",
+  "注入": "注入",
+  "重击": "重擊",
+  "弹反": "彈反",
+  "检查点": "檢查點",
+  "当前": "當前",
+  "目标": "目標",
+  "词缀": "詞綴",
+  "临时": "臨時",
+  "清空": "清空",
+  "流程": "流程",
+  "重置": "重設",
+  "机关": "機關",
+  "推进": "推進",
+  "反应": "反應",
+  "质量": "品質",
+  "误操作": "誤操作",
+  "最长区": "最長區",
+  "封文大门": "封文大門",
+  "压机关庭": "壓機關庭",
+  "断廊遭遇": "斷廊遭遇",
+  "冻水温室": "凍水溫室",
+  "碎桥力场": "碎橋力場",
+  "残章中庭": "殘章中庭",
+  "修正文库门槛": "修正文庫門檻",
+  "裂纹": "裂紋",
+  "轻盈": "輕盈",
+  "过热": "過熱",
+  "冻结": "凍結",
+  "潮湿": "潮濕",
+  "场景": "場景",
+  "开放": "開放",
+  "锁定": "鎖定",
+  "进入": "進入",
+  "已达成": "已達成",
+  "进行中": "進行中",
+  "还没有事件": "還沒有事件",
+  "系统配置": "系統設定",
+  "环境背景垫音": "環境背景墊音",
+  "快速旅行": "快速旅行",
+  "关卡直接跳转": "關卡直接跳轉",
+  "建立同步链路": "建立同步鏈路",
+  "世界由原初作者写就": "世界由原初作者寫就",
+  "失去维护后分崩离析": "失去維護後分崩離析",
+  "疯狂蚕食": "瘋狂蠶食",
+  "物体": "物體",
+  "底层语义": "底層語義",
+  "完成原初修复考验": "完成原初修復考驗",
+  "重塑万物法则": "重塑萬物法則"
+};
+
+const TRADITIONAL_CHARACTERS = {
+  "语": "語", "义": "義", "词": "詞", "缀": "綴", "图": "圖", "谱": "譜", "区": "區", "时": "時",
+  "过": "過", "冻": "凍", "湿": "濕", "轻": "輕", "场": "場", "桥": "橋", "残": "殘", "门": "門",
+  "开": "開", "关": "關", "闭": "閉", "进": "進", "达": "達", "锁": "鎖", "扫": "掃", "击": "擊",
+  "弹": "彈", "离": "離", "显": "顯", "临": "臨", "库": "庫", "体": "體", "态": "態", "写": "寫",
+  "这": "這", "个": "個", "为": "為", "与": "與", "并": "並", "将": "將", "让": "讓", "会": "會",
+  "从": "從", "后": "後", "还": "還", "没": "沒", "经": "經", "对": "對", "应": "應", "动": "動",
+  "机": "機", "压": "壓", "调": "調", "发": "發", "现": "現", "层": "層", "护": "護", "览": "覽",
+  "选": "選", "择": "擇", "当": "當", "归": "歸", "档": "檔", "复": "復", "验": "驗", "测": "測",
+  "数": "數", "据": "據", "设": "設", "声": "聲", "确": "確", "认": "認", "则": "則", "万": "萬",
+  "维": "維", "护": "護", "丧": "喪", "断": "斷", "冲": "衝", "蚀": "蝕", "仅": "僅", "读": "讀",
+  "码": "碼", "线": "線", "级": "級", "历": "歷", "览": "覽", "质": "質", "敌": "敵", "败": "敗",
+  "长": "長", "总": "總", "结": "結", "历": "歷", "启": "啟", "间": "間", "转": "轉", "换": "換",
+  "题": "題", "游": "遊", "戏": "戲", "状": "狀", "试": "試", "炼": "煉", "话": "話", "议": "議",
+  "撤": "撤", "销": "銷", "轮": "輪", "误": "誤", "笔": "筆", "触": "觸", "无": "無", "构": "構",
+  "强": "強", "组": "組", "载": "載", "欢": "歡", "来": "來", "寻": "尋", "变": "變", "观": "觀",
+  "战": "戰", "斗": "鬥", "绽": "綻", "里": "裡", "证": "證", "环": "環", "见": "見", "标": "標",
+  "补": "補", "报": "報", "告": "告", "择": "擇", "处": "處", "应": "應", "阶": "階", "续": "續",
+  "释": "釋", "览": "覽", "这": "這", "备": "備", "须": "須", "难": "難", "够": "夠", "绳": "繩"
+};
+
+const i18nTextState = new WeakMap();
+const i18nAttributeState = new WeakMap();
+
+function toTraditional(source) {
+  let output = source;
+  Object.entries(TRADITIONAL_PHRASES)
+    .sort((a, b) => b[0].length - a[0].length)
+    .forEach(([from, to]) => {
+      output = output.split(from).join(to);
+    });
+  output = [...output].map((character) => TRADITIONAL_CHARACTERS[character] || character).join("");
+  return output;
+}
+
+function toEnglish(source) {
+  if (EN_EXACT[source]) return EN_EXACT[source];
+  const patterns = [
+    [/^扫描到 (.+)：(.+)。$/, (_, objectName, tags) => `Scanned ${toEnglish(objectName)}: ${toEnglish(tags)}.`],
+    [/^向 (.+) 注入“(.+)”。$/, (_, objectName, tagLabel) => `Injected “${toEnglish(tagLabel)}” into ${toEnglish(objectName)}.`],
+    [/^剥离“(.+)”，收入临时词库。$/, (_, tagLabel) => `Extracted “${toEnglish(tagLabel)}” into the temporary lexicon.`],
+    [/^(.+) 被击败。$/, (_, objectName) => `${toEnglish(objectName)} defeated.`],
+    [/^进入 (Z\\d)：(.+)。原墨恢复少量，临时词库已归档。$/, (_, zoneId, zoneName) => `Entered ${zoneId}: ${toEnglish(zoneName)}. Ink partially restored; temporary tags archived.`],
+    [/^区域精通：(.+)。奖励 2 点原墨。$/, (_, label) => `Zone Mastery: ${toEnglish(label)}. Gained 2 Ink.`],
+    [/^消耗(\\d+)原墨(.+)$/, (_, cost, rest) => `Spend ${cost} Ink to ${toEnglish(rest)}`],
+    [/^本区试炼 · (.+)$/, (_, status) => `Zone Trial · ${toEnglish(status)}`],
+    [/^(.+) 次失误$/, (_, count) => `${count} mistakes`]
+  ];
+  for (const [pattern, format] of patterns) {
+    if (pattern.test(source)) return source.replace(pattern, format);
+  }
+  let output = source;
+  Object.entries(EN_EXACT)
+    .filter(([from]) => (
+      from.length > 1 &&
+      from.length <= 24 &&
+      !Object.keys(EN_TERMS).some((term) => term.includes(from))
+    ))
+    .sort((a, b) => b[0].length - a[0].length)
+    .forEach(([from, to]) => {
+      output = output.split(from).join(to);
+    });
+  Object.entries(EN_TERMS)
+    .sort((a, b) => b[0].length - a[0].length)
+    .forEach(([from, to]) => {
+      output = output.split(from).join(to);
+    });
+  output = output
+    .split("：").join(": ")
+    .split("，").join(", ")
+    .split("。").join(".");
+  return EN_EXACT[output] || output;
+}
+
+function localizeText(source) {
+  if (!source || state.language === "zh-Hans") return source;
+  return state.language === "zh-Hant" ? toTraditional(source) : toEnglish(source);
+}
+
+function setLanguage(language) {
+  if (!LANGUAGES[language] || state.language === language) return;
+  state.language = language;
+  saveGameToLocal();
+  render();
+}
+
+function applyLanguageToDocument() {
+  const language = LANGUAGES[state.language] || LANGUAGES["zh-Hans"];
+  if (document.documentElement) document.documentElement.lang = language.htmlLang;
+  document.title = language.title;
+  document.querySelectorAll("[data-language]").forEach((button) => {
+    const active = button.dataset.language === state.language;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (!document.createTreeWalker || typeof NodeFilter === "undefined") return;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    if (!["SCRIPT", "STYLE"].includes(node.parentElement?.tagName)) {
+      const current = node.nodeValue;
+      const previous = i18nTextState.get(node);
+      const source = !previous || current !== previous.rendered ? current : previous.source;
+      const leading = source.match(/^\\s*/)?.[0] || "";
+      const trailing = source.match(/\\s*$/)?.[0] || "";
+      const core = source.trim();
+      const rendered = core ? `${leading}${localizeText(core)}${trailing}` : source;
+      node.nodeValue = rendered;
+      i18nTextState.set(node, { source, rendered });
+    }
+    node = walker.nextNode();
+  }
+  document.querySelectorAll("[aria-label], [title]").forEach((element) => {
+    const prior = i18nAttributeState.get(element) || {};
+    const next = { ...prior };
+    ["aria-label", "title"].forEach((attribute) => {
+      if (!element.hasAttribute(attribute)) return;
+      const current = element.getAttribute(attribute);
+      const previous = prior[attribute];
+      const source = !previous || current !== previous.rendered ? current : previous.source;
+      const rendered = localizeText(source);
+      element.setAttribute(attribute, rendered);
+      next[attribute] = { source, rendered };
+    });
+    i18nAttributeState.set(element, next);
+  });
+}
 
 const ZONES = [
   {
@@ -617,7 +1107,8 @@ const state = {
   lastFeedback: null,
   unlockedZones: ["Z1"],
   completionSfxPlayed: false,
-  theme: "dark"
+  theme: "dark",
+  language: "zh-Hans"
 };
 
 const el = {
@@ -789,6 +1280,8 @@ function setTestMode(mode) {
 function applyInitialModeFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const mode = params.get("mode");
+  const language = params.get("lang");
+  if (LANGUAGES[language]) state.language = language;
   if (!TEST_MODES[mode] || state.testMode === mode) return;
   state.testMode = mode;
   state.metrics.testMode = mode;
@@ -1371,6 +1864,11 @@ function triggerReaction(obj, reactionId) {
     audio.playSfx("reaction");
     triggerScreenShake("medium");
     if (obj.id === "warden") reduceBossShield(obj, "力场震荡打散第三层护文。", reactionId);
+    if (zone().id === "Z5" && obj.id === "debris") {
+      state.flags.debrisGathered = true;
+      state.flags.bridgeFormed = true;
+      log("相反力场在碎片内部坍缩并弹开，桥面一次成形。", "good", "alternate-route");
+    }
     log("触发组合反应：力场震荡。", "good");
     return true;
   }
@@ -1816,6 +2314,7 @@ function canFormBridge() {
 
 function z5MechanicHint(obj = selectedObject()) {
   if (zone().id !== "Z5" || !obj?.scanned) return "";
+  if (state.testMode === "low") return "";
   if (obj.id === "pullPillar" && !state.flags.debrisGathered) return "这是碎桥机关的吸引端：先用“聚拢碎片”驱动桥面，不需要把力场词当普通词源剥离。";
   if (obj.id === "pushPillar" && state.flags.debrisGathered && !state.flags.bridgeFormed) return "这是碎桥机关的排斥端：先用“形成桥面”把碎片推入锚点，不需要把力场词当普通词源剥离。";
   return "";
@@ -2330,6 +2829,7 @@ function render() {
   renderCompletionPanel();
   el.reflectionBox.textContent = zone().reflection;
   renderReportData();
+  applyLanguageToDocument();
 }
 
 function renderMasteryPanel() {
@@ -2948,6 +3448,7 @@ function buildReport() {
     sessionId: state.sessionId,
     testMode: state.testMode,
     testModeLabel: currentModeLabel(),
+    language: state.language,
     completed,
     elapsedSec: state.metrics.completedAt ?? elapsedSeconds(),
     activeZoneElapsedSec: activeZoneElapsedSec(),
@@ -3071,6 +3572,12 @@ function initSettings() {
   }
 }
 
+function initLanguageControls() {
+  document.querySelectorAll("[data-language]").forEach((button) => {
+    button.addEventListener("click", () => setLanguage(button.dataset.language));
+  });
+}
+
 function renderSettingsZones() {
   const container = document.getElementById("settingsZoneSelect");
   if (!container) return;
@@ -3106,6 +3613,7 @@ function renderSettingsZones() {
     }
     container.appendChild(btn);
   });
+  applyLanguageToDocument();
 }
 
 function initPrologue() {
@@ -3188,6 +3696,7 @@ setInterval(() => {
     el.elapsedValue.textContent = formatTime(elapsedSeconds());
     renderMetrics();
     renderReportData();
+    applyLanguageToDocument();
   }
 }, 1000);
 window.__echoRuntime = { state, el, BUILD_LABEL, TEST_MODES };
@@ -3195,9 +3704,11 @@ window.__echoRuntime = { state, el, BUILD_LABEL, TEST_MODES };
 window.__echoString = {
   buildReport,
   setTestMode,
+  setLanguage,
   currentState: () => ({
     zone: zone().id,
     testMode: state.testMode,
+    language: state.language,
     hint: nextHint(),
     metrics: structuredClone(state.metrics),
     flags: { ...state.flags }
@@ -3208,6 +3719,7 @@ applyInitialModeFromUrl();
 loadGameFromLocal();
 initPrologue();
 initSettings();
+initLanguageControls();
 initLayoutInteractive();
 saveZoneCheckpoint("Z1入口检查点");
 if (!state.log.length) {

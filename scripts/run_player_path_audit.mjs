@@ -12,6 +12,7 @@ if (!audit.passed) failures.push("player path audit did not pass");
 const expectedChecks = [
   "non-persistent source cannot be extracted after visible tag is gone",
   "Z5 field pillar extraction is blocked on mechanic route",
+  "Z5 explore route forms bridge through field collision",
   "Boss core exposure keeps positive HP before final fragile strike",
   "Boss can be finished after second visible fragile extraction"
 ];

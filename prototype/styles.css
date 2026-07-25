@@ -300,8 +300,55 @@ h3 {
   background: rgba(0, 0, 0, 0.12);
 }
 
+.language-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(34px, 1fr));
+  gap: 3px;
+  min-height: 36px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.language-button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.language-button:hover,
+.language-button.active {
+  color: #07110e;
+  background: var(--accent);
+}
+
+.prologue-language-switch {
+  position: absolute;
+  z-index: 2;
+  right: 28px;
+  top: 48px;
+}
+
 body.theme-light .mode-switch {
   background: rgba(255, 255, 255, 0.52);
+}
+
+body.theme-light .language-switch {
+  border-color: rgba(71, 76, 63, 0.13);
+  background: rgba(90, 72, 48, 0.055);
+}
+
+body.theme-light .language-button.active,
+body.theme-light .language-button:hover {
+  color: #fffdf7;
+  background: #236c58;
 }
 
 .theme-toggle-btn,
@@ -2691,7 +2738,10 @@ body:not(.regression-mode) .bottom-panel {
 }
 
 .prologue-box::before {
-  content: "语义恢复协议 / 001";
+  content: none;
+}
+
+.prologue-protocol {
   position: absolute;
   right: 30px;
   top: 24px;
@@ -3148,6 +3198,10 @@ body.theme-light .prologue-line {
     min-height: auto;
   }
 
+  .language-switch {
+    grid-column: 1 / -1;
+  }
+
   .status-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3304,9 +3358,14 @@ body.theme-light .prologue-line {
     border-radius: 20px;
   }
 
-  .prologue-box::before {
+  .prologue-protocol {
     right: 20px;
     top: 14px;
+  }
+
+  .prologue-language-switch {
+    right: 18px;
+    top: 42px;
   }
 
   .prologue-glitch-title {

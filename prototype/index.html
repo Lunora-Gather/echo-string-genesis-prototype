@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=1.0.5" />
+    <link rel="stylesheet" href="./styles.css?v=1.0.6" />
   </head>
   <body>
     <!-- Screen Effects Overlay -->
@@ -23,6 +23,12 @@
     <!-- Narrative Prologue Overlay -->
     <div id="prologueOverlay" class="prologue-overlay">
       <div class="prologue-box">
+        <span class="prologue-protocol">语义恢复协议 / 001</span>
+        <div class="language-switch prologue-language-switch" aria-label="语言 / Language">
+          <button class="language-button active" type="button" data-language="zh-Hans">简</button>
+          <button class="language-button" type="button" data-language="zh-Hant">繁</button>
+          <button class="language-button" type="button" data-language="en">EN</button>
+        </div>
         <div class="prologue-glitch-title">ECHO-STRING</div>
         <p class="prologue-tagline">《语弦生态：创世纪》叙事恢复接口 v1.1.0</p>
         <div class="prologue-content">
@@ -91,6 +97,11 @@
               <button class="mode-button active" type="button" data-mode="guided" data-testid="mode-guided" aria-pressed="true">引导</button>
               <button class="mode-button" type="button" data-mode="low" data-testid="mode-low" aria-pressed="false">探索</button>
               <button class="mode-button" type="button" data-mode="debug" data-testid="mode-debug" aria-pressed="false">沙盒</button>
+            </div>
+            <div class="language-switch" aria-label="语言 / Language">
+              <button class="language-button active" type="button" data-language="zh-Hans">简</button>
+              <button class="language-button" type="button" data-language="zh-Hant">繁</button>
+              <button class="language-button" type="button" data-language="en">EN</button>
             </div>
           </div>
           <div class="status-strip" aria-label="玩家状态">
@@ -213,7 +224,7 @@
     </main>
 
     <script id="reportData" type="application/json"></script>
-    <script src="./app.js?v=1.0.1" defer></script>
-    <script src="./regression.js?v=1.0.0" defer></script>
+    <script src="./app.js?v=1.0.2" defer></script>
+    <script src="./regression.js?v=1.0.1" defer></script>
   </body>
 </html>

@@ -248,6 +248,15 @@ function runPlayerPathAudit() {
   check("Z5 field pillar extraction is blocked on mechanic route", runtimeState.metrics.warnings > beforeWarnings && !runtimeState.inventory.includes("Semantic.Field.Attract"));
 
   resetGame();
+  runtimeState.testMode = "low";
+  setRouteZone("Z5");
+  routeExtract("pullPillar", "Semantic.Field.Attract");
+  routeInject("debris", "Semantic.Field.Attract");
+  routeExtract("pushPillar", "Semantic.Field.Repel");
+  routeInject("debris", "Semantic.Field.Repel");
+  check("Z5 explore route forms bridge through field collision", runtimeState.flags.fieldPulse && runtimeState.flags.bridgeFormed);
+
+  resetGame();
   setRouteZone("Z6");
   routeExtract("bossFire", "Semantic.Temperature.Overheated");
   routeInject("warden", "Semantic.Temperature.Overheated");
