@@ -4451,6 +4451,19 @@ body.theme-light .zone-item.active {
     grid-template-columns: 1fr auto;
   }
 
+  .expedition-pressure {
+    grid-template-columns: auto minmax(72px, 1fr);
+    min-height: 32px;
+  }
+
+  .expedition-pressure .modifier-list {
+    display: none;
+  }
+
+  .chronicle-panel.expedition-active .chronicle-stats {
+    display: none;
+  }
+
   .scene-map {
     grid-template-columns: 1fr;
   }

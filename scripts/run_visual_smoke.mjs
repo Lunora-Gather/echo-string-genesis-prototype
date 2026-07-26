@@ -32,6 +32,14 @@ const scenarios = [
     height: 844,
     mobile: true,
     screenshot: "production/releases/1.1.1/screenshots/mobile-low.png"
+  },
+  {
+    name: "mobile-expedition",
+    mode: "expedition",
+    width: 390,
+    height: 844,
+    mobile: true,
+    screenshot: "production/releases/1.1.1/screenshots/mobile-expedition.png"
   }
 ];
 

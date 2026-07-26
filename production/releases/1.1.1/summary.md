@@ -1,6 +1,6 @@
 ﻿# 回归套件报告摘要
 
-生成时间：2026-07-26 15:23:19
+生成时间：2026-07-26 15:26:43
 报告来源：`production\releases\1.1.1\report.json`
 
 ## 1. 总览
@@ -89,6 +89,7 @@
 | desktop-expedition | True | 1440x960 | 0 | True | True | True | production/releases/1.1.1/screenshots/desktop-expedition.png |
 | desktop-guided | True | 1280x900 | 0 | True | True | True | production/releases/1.1.1/screenshots/desktop-guided.png |
 | mobile-low | True | 390x844 | 0 | True | True | True | production/releases/1.1.1/screenshots/mobile-low.png |
+| mobile-expedition | True | 390x844 | 0 | True | True | True | production/releases/1.1.1/screenshots/mobile-expedition.png |
 
 ## 8. 校验覆盖
 

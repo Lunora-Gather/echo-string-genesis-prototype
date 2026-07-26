@@ -93,6 +93,36 @@
         "lowUnscannedLeaks": false
       },
       "failures": []
+    },
+    {
+      "name": "mobile-expedition",
+      "url": "http://127.0.0.1:4174/index.html?mode=expedition",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "mobile": true
+      },
+      "screenshot": "production/releases/1.1.1/screenshots/mobile-expedition.png",
+      "passed": true,
+      "inspection": {
+        "uxBuild": "1.1.1",
+        "mode": "expedition",
+        "zone": "Z1",
+        "prologueHidden": true,
+        "objectTokens": 2,
+        "actionButtons": 6,
+        "overflowX": 0,
+        "firstActionVisible": true,
+        "firstActionEnabled": false,
+        "firstObjectVisible": true,
+        "firstObjectEnabled": true,
+        "firstUsableStepVisible": true,
+        "resultPulseVisible": true,
+        "hasTitle": true,
+        "hasBuild": true,
+        "lowUnscannedLeaks": false
+      },
+      "failures": []
     }
   ],
   "failures": []
