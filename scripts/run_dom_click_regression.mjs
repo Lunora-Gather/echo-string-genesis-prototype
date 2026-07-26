@@ -322,6 +322,119 @@ async function assertPage(session, expression, label) {
   if (!passed) throw new Error(`DOM click assertion failed: ${label}`);
 }
 
+async function runControlAudit(port) {
+  const url = `${APP_URL}${APP_URL.includes("?") ? "&" : "?"}mode=guided&controls=1`;
+  const session = await openPageTarget(port, url);
+  const checks = [];
+  const check = (label, passed, detail = "") => checks.push({ label, passed: Boolean(passed), detail });
+  try {
+    await session.call("Emulation.setDeviceMetricsOverride", {
+      width: 1440,
+      height: 960,
+      deviceScaleFactor: 1,
+      mobile: false,
+      screenWidth: 1440,
+      screenHeight: 960
+    });
+    await evalPage(session, `document.querySelector("#startPrologueBtn")?.click()`);
+
+    const mapInitial = await evalPage(session, `(() => ({
+      hidden: getComputedStyle(document.querySelector(".zone-panel")).display === "none",
+      expanded: document.querySelector("#travelMapBtn").getAttribute("aria-expanded")
+    }))()`);
+    check("map starts closed", mapInitial.hidden && mapInitial.expanded === "false");
+
+    await evalPage(session, `document.querySelector("#travelMapBtn").click()`);
+    const mapOpen = await evalPage(session, `(() => {
+      const panel = document.querySelector(".zone-panel");
+      const rect = panel.getBoundingClientRect();
+      return {
+        open: panel.classList.contains("open"),
+        visible: rect.width > 0 && rect.height > 0,
+        backdrop: document.querySelector("#mapBackdrop").classList.contains("open"),
+        expanded: document.querySelector("#travelMapBtn").getAttribute("aria-expanded")
+      };
+    })()`);
+    check("map opens as visible drawer", mapOpen.open && mapOpen.visible && mapOpen.backdrop && mapOpen.expanded === "true");
+
+    await evalPage(session, `document.querySelector(".zone-item.active").click()`);
+    const mapClosesOnSelection = await evalPage(session, `!document.querySelector(".zone-panel").classList.contains("open") && document.querySelector("#travelMapBtn").getAttribute("aria-expanded") === "false"`);
+    check("map closes after zone selection", mapClosesOnSelection);
+
+    await evalPage(session, `document.querySelector("#travelMapBtn").click(); document.querySelector("#closeTravelBtn").click()`);
+    check("map close button works", await evalPage(session, `!document.querySelector(".zone-panel").classList.contains("open")`));
+    await evalPage(session, `document.querySelector("#travelMapBtn").click(); document.querySelector("#mapBackdrop").click()`);
+    check("map backdrop closes drawer", await evalPage(session, `!document.querySelector(".zone-panel").classList.contains("open")`));
+
+    await evalPage(session, `document.querySelector("#toggleLogsBtn").click()`);
+    check("log drawer opens", await evalPage(session, `document.querySelector(".bottom-panel").classList.contains("open")`));
+    await evalPage(session, `document.querySelector("#toggleLogsBtn").click()`);
+    check("log drawer closes", await evalPage(session, `!document.querySelector(".bottom-panel").classList.contains("open")`));
+
+    await evalPage(session, `document.querySelector("#settingsBtn").click()`);
+    const settingsOpen = await evalPage(session, `(() => ({
+      visible: !document.querySelector("#settingsPanel").classList.contains("hidden"),
+      zones: document.querySelectorAll(".settings-zone-btn").length,
+      bgm: document.querySelector("#bgmVolumeSlider").value,
+      sfx: document.querySelector("#sfxVolumeSlider").value
+    }))()`);
+    check("settings opens with controls", settingsOpen.visible && settingsOpen.zones === 7 && settingsOpen.bgm === "50" && settingsOpen.sfx === "70");
+    await evalPage(session, `document.querySelector("#closeSettingsBtn").click()`);
+    check("settings closes", await evalPage(session, `document.querySelector("#settingsPanel").classList.contains("hidden")`));
+
+    const themeBefore = await evalPage(session, `document.body.classList.contains("theme-light")`);
+    await evalPage(session, `document.querySelector("#themeToggleBtn").click()`);
+    const themeChanged = await evalPage(session, `document.body.classList.contains("theme-light") !== ${JSON.stringify(themeBefore)}`);
+    await evalPage(session, `document.querySelector("#themeToggleBtn").click()`);
+    const themeRestored = await evalPage(session, `document.body.classList.contains("theme-light") === ${JSON.stringify(themeBefore)}`);
+    check("theme toggles and restores", themeChanged && themeRestored);
+
+    await evalPage(session, `document.querySelector('.topbar [data-language="zh-Hant"]').click()`);
+    check("traditional locale applies", await evalPage(session, `document.documentElement.lang === "zh-Hant" && document.querySelector("h1").textContent.includes("斷句庭院")`));
+    await evalPage(session, `document.querySelector('.topbar [data-language="zh-Hans"]').click()`);
+    check("simplified locale restores", await evalPage(session, `document.documentElement.lang === "zh-CN" && document.querySelector("h1").textContent.includes("断句庭院")`));
+
+    for (const mode of ["guided", "low", "debug", "expedition"]) {
+      await evalPage(session, `document.querySelector('[data-testid="mode-${mode}"]').click()`);
+      const applied = await evalPage(session, `(() => {
+        const report = JSON.parse(document.querySelector("#reportData").textContent);
+        const active = document.querySelector(".mode-button.active");
+        return report.testMode === ${JSON.stringify(mode)} && active?.dataset.mode === ${JSON.stringify(mode)} && active?.getAttribute("aria-pressed") === "true";
+      })()`);
+      check(`${mode} mode applies`, applied);
+    }
+
+    await evalPage(session, `document.querySelector('[data-chronicle-action="toggle-inscriptions"]').click()`);
+    check("inscriptions expand", await evalPage(session, `document.querySelector("#chroniclePanel").classList.contains("mobile-expanded") && getComputedStyle(document.querySelector(".inscription-grid")).display === "grid"`));
+    await evalPage(session, `document.querySelector('[data-chronicle-action="toggle-inscriptions"]').click()`);
+    check("inscriptions collapse", await evalPage(session, `!document.querySelector("#chroniclePanel").classList.contains("mobile-expanded") && getComputedStyle(document.querySelector(".inscription-grid")).display === "none"`));
+
+    const checkpointBefore = await evalPage(session, `JSON.parse(document.querySelector("#reportData").textContent).metrics.checkpointRestores`);
+    await evalPage(session, `document.querySelector("#checkpointBtn").click()`);
+    const checkpointAfter = await evalPage(session, `JSON.parse(document.querySelector("#reportData").textContent).metrics.checkpointRestores`);
+    check("checkpoint restores", checkpointAfter === checkpointBefore + 1);
+
+    await evalPage(session, `document.querySelector("#shareLinkBtn").click()`);
+    await wait(80);
+    check("share gives feedback", await evalPage(session, `JSON.parse(document.querySelector("#reportData").textContent).latestLog.some((item) => item.includes("试玩链接"))`));
+
+    await evalPage(session, `document.querySelector("#restartSessionBtn").click()`);
+    const restarted = await evalPage(session, `(() => {
+      const report = JSON.parse(document.querySelector("#reportData").textContent);
+      return report.currentZone === "Z1" && !report.completed;
+    })()`);
+    check("restart returns to Z1", restarted);
+    check("report download control exists", await evalPage(session, `Boolean(document.querySelector("#downloadReportBtn") && !document.querySelector("#downloadReportBtn").disabled)`));
+
+    return {
+      passed: checks.every((item) => item.passed),
+      checks
+    };
+  } finally {
+    session.close();
+  }
+}
+
 async function route(session, mode) {
   await evalPage(session, `document.body.dataset.domClickMode = ${JSON.stringify(mode)}`);
 
@@ -421,12 +534,14 @@ async function runMode(port, mode) {
 
 const browser = await launchBrowser();
 try {
+  const controls = await runControlAudit(browser.port);
   const reports = {
     guided: await runMode(browser.port, "guided"),
     low: await runMode(browser.port, "low"),
     expedition: await runMode(browser.port, "expedition")
   };
   const failures = [];
+  controls.checks.filter((item) => !item.passed).forEach((item) => failures.push(`control: ${item.label}`));
   for (const [mode, report] of Object.entries(reports)) {
     if (!report.completed || report.currentZone !== "Z7") failures.push(`${mode} did not complete`);
     if (mode !== "expedition" && report.mistakes !== 0) failures.push(`${mode} mistakes expected 0, got ${report.mistakes}`);
@@ -442,6 +557,7 @@ try {
     browser: path.basename(browser.browserPath),
     url: APP_URL,
     passed: failures.length === 0,
+    controls,
     reports,
     failures
   };

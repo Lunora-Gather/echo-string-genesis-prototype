@@ -1207,6 +1207,7 @@ const el = {
   downloadReportBtn: document.getElementById("downloadReportBtn"),
   themeToggleBtn: document.getElementById("themeToggleBtn"),
   travelMapBtn: document.getElementById("travelMapBtn"),
+  mapBackdrop: document.getElementById("mapBackdrop"),
   toggleLogsBtn: document.getElementById("toggleLogsBtn"),
   closeTravelBtn: document.getElementById("closeTravelBtn"),
   closeInspectorBtn: document.getElementById("closeInspectorBtn"),
@@ -3158,7 +3159,7 @@ function renderZones() {
         
         // Auto-close travel modal
         if (el.zonePanel && !document.body.classList.contains("regression-mode")) {
-          el.zonePanel.classList.remove("open");
+          setMapOpen(false);
         }
         
         render();
@@ -4038,12 +4039,17 @@ function initLayoutInteractive() {
 
   if (el.travelMapBtn && el.zonePanel) {
     el.travelMapBtn.addEventListener("click", () => {
-      el.zonePanel.classList.toggle("open");
+      setMapOpen(!el.zonePanel.classList.contains("open"));
     });
   }
   if (el.closeTravelBtn && el.zonePanel) {
     el.closeTravelBtn.addEventListener("click", () => {
-      el.zonePanel.classList.remove("open");
+      setMapOpen(false);
+    });
+  }
+  if (el.mapBackdrop) {
+    el.mapBackdrop.addEventListener("click", () => {
+      setMapOpen(false);
     });
   }
 
@@ -4058,4 +4064,18 @@ function initLayoutInteractive() {
       el.inspectorPanel.classList.remove("open");
     });
   }
+
+  document.addEventListener?.("keydown", (event) => {
+    if (event.key === "Escape" && el.zonePanel?.classList.contains("open")) {
+      setMapOpen(false);
+    }
+  });
+}
+
+function setMapOpen(open) {
+  if (!el.zonePanel) return;
+  el.zonePanel.classList.toggle("open", open);
+  el.mapBackdrop?.classList.toggle("open", open);
+  document.body.classList.toggle("map-open", open);
+  el.travelMapBtn?.setAttribute("aria-expanded", String(open));
 }

@@ -4508,3 +4508,96 @@ body.theme-light:not(.regression-mode) .bottom-panel {
     linear-gradient(145deg, rgba(255, 255, 255, 0.8), transparent 48%),
     rgba(248, 246, 239, 0.98);
 }
+
+/* 1.1.1 functional hardening: the map is a real drawer at every breakpoint. */
+.workspace {
+  grid-template-columns: minmax(0, 1fr) 268px;
+}
+
+.zone-panel {
+  display: none;
+}
+
+.zone-panel.open {
+  position: fixed;
+  z-index: 6000;
+  top: 84px;
+  left: max(14px, calc((100vw - min(1760px, 100vw)) / 2 + 22px));
+  display: flex;
+  flex-direction: column;
+  width: min(340px, calc(100vw - 28px));
+  max-height: calc(100vh - 102px);
+  overflow: auto;
+  border-color: var(--line-strong);
+  box-shadow: 0 34px 100px var(--shadow-strong);
+  animation: map-drawer-in 180ms ease-out both;
+}
+
+.zone-panel.open .close-btn {
+  display: inline-flex;
+}
+
+.map-backdrop {
+  position: fixed;
+  z-index: 5900;
+  inset: 0;
+  display: block;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(3, 10, 7, 0.48);
+  backdrop-filter: blur(5px);
+  transition: opacity 160ms ease;
+}
+
+.map-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.theme-light .map-backdrop {
+  background: rgba(59, 52, 42, 0.25);
+}
+
+body.map-open {
+  overflow: hidden;
+}
+
+#travelMapBtn[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--ink-strong);
+  background: var(--accent-soft);
+}
+
+@keyframes map-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@media (max-width: 1320px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) 248px;
+  }
+
+  .zone-panel.open {
+    left: 14px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zone-panel.open {
+    inset: 12px auto auto 12px;
+    max-height: calc(100vh - 24px);
+  }
+}

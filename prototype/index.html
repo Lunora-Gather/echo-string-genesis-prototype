@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=1.1.1-ui2" />
+    <link rel="stylesheet" href="./styles.css?v=1.1.1-ui3" />
   </head>
   <body class="theme-light">
     <!-- Screen Effects Overlay -->
@@ -78,6 +78,7 @@
 
     <!-- VFX Floating Effects Container -->
     <div id="effectsContainer" class="effects-container"></div>
+    <button id="mapBackdrop" class="map-backdrop" type="button" aria-label="关闭地图"></button>
 
     <main class="app-shell">
       <header class="topbar">
@@ -88,7 +89,7 @@
         </div>
         <div class="topbar-controls">
           <div class="topbar-controls-row">
-            <button id="travelMapBtn" class="theme-toggle-btn" type="button" aria-label="旅行地图">🌐 地图</button>
+            <button id="travelMapBtn" class="theme-toggle-btn" type="button" aria-label="旅行地图" aria-expanded="false">🌐 地图</button>
             <button id="toggleLogsBtn" class="theme-toggle-btn" type="button" aria-label="历史日志">📜 日志</button>
             <button id="themeToggleBtn" class="theme-toggle-btn" type="button" aria-label="切换主题">☀️ 亮色</button>
             <button id="settingsBtn" class="settings-toggle-btn" type="button" aria-label="游戏配置">⚙️ 配置</button>
@@ -227,7 +228,7 @@
     <script id="reportData" type="application/json"></script>
     <script src="./core/runtime-config.js?v=1.1.1" defer></script>
     <script src="./core/progression.js?v=1.1.1" defer></script>
-    <script src="./app.js?v=1.1.1" defer></script>
+    <script src="./app.js?v=1.1.1-fn1" defer></script>
     <script src="./regression.js?v=1.1.1" defer></script>
   </body>
 </html>

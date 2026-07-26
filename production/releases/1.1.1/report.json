@@ -4,7 +4,7 @@
   "uxBuild": "1.1.1",
   "uxBuildName": "Chronicle Expedition",
   "source": "Node VM regression suite with guided, exploration, and expedition routes",
-  "generatedAt": "2026-07-26T07:26:43.477Z",
+  "generatedAt": "2026-07-26T07:56:32.285Z",
   "passed": true,
   "rollout": [
     {
@@ -211,6 +211,121 @@
     "browser": "chrome.exe",
     "url": "http://127.0.0.1:4174/index.html",
     "passed": true,
+    "controls": {
+      "passed": true,
+      "checks": [
+        {
+          "label": "map starts closed",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "map opens as visible drawer",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "map closes after zone selection",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "map close button works",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "map backdrop closes drawer",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "log drawer opens",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "log drawer closes",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "settings opens with controls",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "settings closes",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "theme toggles and restores",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "traditional locale applies",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "simplified locale restores",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "guided mode applies",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "low mode applies",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "debug mode applies",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "expedition mode applies",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "inscriptions expand",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "inscriptions collapse",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "checkpoint restores",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "share gives feedback",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "restart returns to Z1",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "label": "report download control exists",
+          "passed": true,
+          "detail": ""
+        }
+      ]
+    },
     "reports": {
       "guided": {
         "mode": "guided",

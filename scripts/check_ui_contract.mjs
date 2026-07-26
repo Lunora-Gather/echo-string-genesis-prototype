@@ -43,6 +43,9 @@ if (!progression.includes("purchaseUpgrade")) fail("long-term upgrade system mis
 if (!ids.has("decisionStrip")) fail("decision strip node missing");
 if (!ids.has("resultPulse")) fail("result pulse node missing");
 if (!ids.has("checkpointBtn")) fail("checkpoint button missing");
+if (!ids.has("mapBackdrop")) fail("map backdrop node missing");
+if (!app.includes("function setMapOpen(open)")) fail("map drawer state controller missing");
+if (!html.includes('aria-expanded="false">🌐 地图</button>')) fail("map button expansion state missing");
 
 if (failures.length) {
   console.error(failures.map((item) => `[FAIL] ${item}`).join("\n"));
