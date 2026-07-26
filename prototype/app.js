@@ -302,6 +302,8 @@ function saveGameToLocal() {
 function loadGameFromLocal() {
   if (typeof window === "undefined" || typeof localStorage === "undefined" || window.navigator?.webdriver || document.body?.dataset?.domClickMode || window.__echoRuntimeIsTesting) return;
   try {
+    const preferredTheme = localStorage.getItem(THEME_PREFERENCE_KEY);
+    state.theme = preferredTheme === "dark" ? "dark" : "light";
     const raw = localStorage.getItem("echo_string_save_v1.1");
     if (!raw) {
       applyTheme();
@@ -314,7 +316,6 @@ function loadGameFromLocal() {
       state.inventory = parsed.inventory || [];
       state.flags = parsed.flags || {};
       state.unlockedZones = parsed.unlockedZones || ["Z1"];
-      state.theme = parsed.theme || "dark";
       const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
       const urlLanguage = requestedLanguage
         ? (LANGUAGES[requestedLanguage] ? requestedLanguage : "zh-Hans")
@@ -418,6 +419,7 @@ const TEST_MODES = {
 };
 
 const BUILD_LABEL = "1.0.0";
+const THEME_PREFERENCE_KEY = "echo_string_theme_preference_v1";
 const BUILD_NAME = "Public Playtest";
 const BUILD_ROLLOUT = [
   { version: "UX11", focus: "低引导自动回归" },
@@ -1105,7 +1107,7 @@ const state = {
   lastFeedback: null,
   unlockedZones: ["Z1"],
   completionSfxPlayed: false,
-  theme: "dark",
+  theme: "light",
   language: "zh-Hans"
 };
 
@@ -3652,6 +3654,7 @@ el.modeButtons.forEach((button) => {
 if (el.themeToggleBtn) {
   el.themeToggleBtn.addEventListener("click", () => {
     state.theme = state.theme === "light" ? "dark" : "light";
+    localStorage.setItem(THEME_PREFERENCE_KEY, state.theme);
     applyTheme();
     saveGameToLocal();
     if (typeof audio !== "undefined" && audio.playSfx) {

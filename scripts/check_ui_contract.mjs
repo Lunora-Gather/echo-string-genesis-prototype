@@ -28,9 +28,12 @@ for (const language of ["zh-Hans", "zh-Hant"]) {
 }
 if (html.includes('data-language="en"')) fail("English language mode should not be exposed");
 
-if (!html.includes("app.js?v=1.0.3")) fail("index.html script cache key is not 1.0.3");
+if (!html.includes("app.js?v=1.0.4")) fail("index.html script cache key is not 1.0.4");
 if (!html.includes("regression.js?v=1.0.1")) fail("index.html regression cache key is not 1.0.1");
 if (!html.includes("1.0.0 Public Playtest")) fail("index.html build pill is not 1.0.0");
+if (!html.includes('<body class="theme-light">')) fail("first visit should render in light theme");
+if (!app.includes('const THEME_PREFERENCE_KEY = "echo_string_theme_preference_v1"')) fail("theme preference key missing");
+if (!app.includes("localStorage.setItem(THEME_PREFERENCE_KEY, state.theme)")) fail("manual theme preference is not persisted");
 if (!ids.has("decisionStrip")) fail("decision strip node missing");
 if (!ids.has("resultPulse")) fail("result pulse node missing");
 if (!ids.has("checkpointBtn")) fail("checkpoint button missing");
