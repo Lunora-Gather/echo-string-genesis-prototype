@@ -1,0 +1,63 @@
+{
+  "build": "1.1.0",
+  "browser": "chrome.exe",
+  "url": "http://127.0.0.1:4174/index.html",
+  "passed": true,
+  "reports": {
+    "guided": {
+      "mode": "guided",
+      "completed": true,
+      "currentZone": "Z7",
+      "scans": 19,
+      "extracts": 12,
+      "injects": 12,
+      "reactions": 4,
+      "mistakes": 0,
+      "feedbackEvents": 40,
+      "failureEvents": 0,
+      "bossCounters": 3,
+      "experienceStatus": "clear",
+      "collapses": 0,
+      "integrity": 3,
+      "runFailed": false,
+      "reward": 8
+    },
+    "low": {
+      "mode": "low",
+      "completed": true,
+      "currentZone": "Z7",
+      "scans": 19,
+      "extracts": 12,
+      "injects": 12,
+      "reactions": 4,
+      "mistakes": 0,
+      "feedbackEvents": 40,
+      "failureEvents": 0,
+      "bossCounters": 3,
+      "experienceStatus": "clear",
+      "collapses": 0,
+      "integrity": 3,
+      "runFailed": false,
+      "reward": 8
+    },
+    "expedition": {
+      "mode": "expedition",
+      "completed": true,
+      "currentZone": "Z7",
+      "scans": 19,
+      "extracts": 12,
+      "injects": 12,
+      "reactions": 4,
+      "mistakes": 2,
+      "feedbackEvents": 40,
+      "failureEvents": 0,
+      "bossCounters": 3,
+      "experienceStatus": "clear",
+      "collapses": 2,
+      "integrity": 1,
+      "runFailed": false,
+      "reward": 12
+    }
+  },
+  "failures": []
+}

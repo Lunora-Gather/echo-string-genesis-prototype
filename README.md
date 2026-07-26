@@ -1,86 +1,68 @@
-# Echo-String: Genesis Prototype
+# Echo-String: Genesis 1.1.0
 
-《语弦生态：创世纪》的可玩网页原型。1.0.0 版本聚焦“断句庭院”垂直切片：玩家通过扫描对象、剥离词缀、注入语义槽位和触发组合反应，验证这套语义改写玩法是否足够清楚、可玩、可继续扩展。
+《语弦生态：创世纪》的长期可玩网页版本。玩家通过扫描对象、剥离词缀、注入语义槽位和触发组合反应穿过断句庭院；通关后可进入带递进规则的远征，积累回声残片并升级永久铭文。
 
-[在线试玩](https://lunora-gather.github.io/echo-string-genesis-prototype/)
-[GitHub 仓库](https://github.com/Lunora-Gather/echo-string-genesis-prototype)
+[在线试玩](https://lunora-gather.github.io/echo-string-genesis-prototype/) · [GitHub 仓库](https://github.com/Lunora-Gather/echo-string-genesis-prototype)
 
-## 1.0.0 状态
+## 1.1.0 核心变化
 
-- Z1 到 Z7 已完整串联，可在浏览器内直接通关。
-- 支持引导、低引导、调试三种测试模式。
-- 已接入真实浏览器 DOM 点击回归、玩家可见路径审计、失败上下文审计和桌面/手机视觉 Smoke。
-- UI 已统一为更圆润的 Morandi 低饱和配色，并使用 Noto Sans SC 字体。
-- 当前仓库以 1.0.0 作为公开发布基线，不再把旧迭代流水账作为首页入口。
+- 新增“远征”模式：每轮按固定序列组合高噪回声、原墨枯潮、重写税和不稳回流。
+- 新增语义威胁与三层稳定度。操作会累积威胁，达到上限触发崩解；稳定度耗尽则本轮失败。
+- 新增长期档案：完成轮次、远征胜场、最高轮次、最佳评分和总崩解次数均会持久保存。
+- 新增回声残片与三条永久铭文：深墨池、活页词库、定句锚。
+- 引导、探索、远征、沙盒四种模式并存；远征沿用探索的信息密度。
+- 存档升级为 schema 2，并将长期档案与单轮进度分离，兼容旧的 1.0.0 本地存档。
+- 首次进入仍默认亮色；玩家手动选择的主题与简繁语言会被记住。
 
-## 玩法概览
+## 玩法循环
 
-核心循环很短，但必须被玩家真实理解：
-
-1. 扫描场景对象，读出可交互语义。
-2. 从对象上剥离合适词缀，放入临时词库。
-3. 将词缀注入开放槽位，改变机关、敌人或环境状态。
-4. 组合温度、介质、力场等词缀，触发蒸汽爆发、破裂窗口、力场震荡等反应。
-5. 进入 Boss 残章守卫阶段，用前面学到的语义反制完成闭环。
+1. 在引导或探索模式完成七个区域，理解扫描、取词、写入和组合反应。
+2. 进入远征，依据本轮规则控制原墨与语义威胁。
+3. 在稳定度耗尽前击败残章守卫，获得回声残片。
+4. 购买永久铭文，提高原墨上限、词库容量或远征抗压能力。
+5. 进入下一轮，面对新的规则组合和更高轮次记录。
 
 ## 目录结构
 
 | 路径 | 说明 |
 | --- | --- |
-| `prototype/` | 无构建静态网页原型，GitHub Pages 直接发布这个目录 |
-| `data/` | MVP 词缀、对象和组合反应数据 |
-| `design/` | 断句庭院灰盒、战斗切片和谜题路线文档 |
-| `scripts/` | 校验、回归、报告、视觉 Smoke 脚本 |
-| `production/` | 1.0.0 验证报告和试玩记录模板 |
-| `Echo-String_Genesis_可执行设计规格.md` | 可执行设计规格 |
+| `prototype/` | GitHub Pages 直接发布的静态客户端 |
+| `prototype/core/` | 版本配置、存档键、长期成长和远征规则 |
+| `prototype/app.js` | 关卡状态、交互控制器与界面渲染 |
+| `prototype/regression.js` | 浏览器内完整路线与边界审计 |
+| `data/` | 语义标签、对象和组合反应的设计数据 |
+| `design/` | 关卡、战斗与 1.1.0 长期循环设计 |
+| `scripts/` | VM、真实 DOM、视觉与发布前验证 |
+| `production/releases/` | 按版本归档的报告与截图 |
+| `production/playtest/` | 真人试玩协议和记录模板 |
+
+更详细的依赖方向与存档边界见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 
 ## 本地运行
 
 ```powershell
-cd "D:\Wonderful\Others\echo string-genesis prototype"
 powershell -ExecutionPolicy Bypass -File .\prototype\start.ps1 -Port 4174
 ```
 
-打开脚本输出的地址，例如：
-
-```text
-http://127.0.0.1:4174/index.html
-```
+打开 `http://127.0.0.1:4174/index.html`。
 
 ## 验证
 
-完整验证会刷新 1.0.0 报告、真实点击记录、视觉截图和摘要：
+完整验证：
 
 ```powershell
-cd "D:\Wonderful\Others\echo string-genesis prototype"
 powershell -ExecutionPolicy Bypass -File .\scripts\validate_project.ps1 -Port 4174
 ```
 
-也可以分项运行：
+核心分项：
 
 ```powershell
+node .\scripts\run_progression_regression.mjs
 node .\scripts\run_app_regression.mjs
 node .\scripts\run_failure_audit.mjs
 node .\scripts\run_player_path_audit.mjs
-node .\scripts\run_dom_click_regression.mjs http://127.0.0.1:4174/index.html
-node .\scripts\run_visual_smoke.mjs http://127.0.0.1:4174/index.html
+node .\scripts\run_dom_click_regression.mjs
+node .\scripts\run_visual_smoke.mjs
 ```
 
-## 关键产物
-
-| 文件 | 说明 |
-| --- | --- |
-| `production/latest_1_0_0_report.json` | 1.0.0 主回归与审计报告 |
-| `production/latest_1_0_0_summary.md` | 1.0.0 可读摘要 |
-| `production/latest_1_0_0_dom_click_report.json` | 真实浏览器 DOM 点击回归 |
-| `production/latest_1_0_0_visual_smoke_report.json` | 桌面/手机视觉 Smoke |
-| `prototype/prototype_1_0_0_full.png` | 桌面首屏截图 |
-| `prototype/prototype_1_0_0_mobile.png` | 手机低引导首屏截图 |
-
-## 当前不做
-
-这些方向保留，但不进入 1.0.0 基线：自由文本输入、开放世界、大规模文明语系切换、复杂因果闭环、真实流体模拟、大量装备等级成长。当前最重要的是证明“扫描、取词、改写、反应”这一小闭环能被新玩家理解并产生乐趣。
-
-## 下一步
-
-最值得继续投入的是低引导真人试玩。建议记录每区耗时、误操作、玩家复述、卡点原因和首次理解语义改写的时刻，再决定是否调整教学节奏、低引导信息密度和 Boss 前置训练。
+当前自动验收覆盖引导、探索和远征三条完整通关路线，以及远征崩解、奖励结算、铭文购买、失败上下文、真实 DOM 点击和桌面/手机布局。

@@ -1,3 +1,17 @@
+const RUNTIME_CONFIG = globalThis.EchoRuntimeConfig || {
+  version: "1.1.0",
+  name: "Chronicle Expedition",
+  saveSchema: 2,
+  saveKey: "echo_string_save_v1.1",
+  profileKey: "echo_string_profile_v1.1",
+  themePreferenceKey: "echo_string_theme_preference_v1"
+};
+const PROGRESSION = globalThis.EchoProgression;
+
+if (!PROGRESSION) {
+  throw new Error("EchoProgression core module failed to load.");
+}
+
 const TAGS = {
   "Semantic.Structure.Closed": { name: "封闭", slot: "Structure", color: "#B88CFF", extract: 1, inject: 2, compatible: ["Door", "Gate", "Mechanism", "Enemy", "Boss"] },
   "Semantic.Structure.Solid": { name: "坚固", slot: "Structure", color: "#9AA5B1", extract: 1, inject: 2, compatible: ["Door", "Stone", "Enemy", "Boss", "Mechanism"] },
@@ -281,39 +295,71 @@ function saveGameToLocal() {
   if (typeof window === "undefined" || typeof localStorage === "undefined" || window.navigator?.webdriver || document.body?.dataset?.domClickMode || window.__echoRuntimeIsTesting) return;
   try {
     const saveData = {
+      schema: RUNTIME_CONFIG.saveSchema,
+      version: BUILD_LABEL,
       zone: state.zone,
+      testMode: state.testMode,
       ink: state.ink,
       inventory: state.inventory,
       flags: state.flags,
       unlockedZones: state.unlockedZones || ["Z1"],
       theme: state.theme,
-      language: state.language
+      language: state.language,
+      run: state.run
     };
     const currentZoneId = zone().id;
     if (!saveData.unlockedZones.includes(currentZoneId)) {
       saveData.unlockedZones.push(currentZoneId);
     }
-    localStorage.setItem("echo_string_save_v1.1", JSON.stringify(saveData));
+    localStorage.setItem(RUNTIME_CONFIG.saveKey, JSON.stringify(saveData));
+    saveProfileToLocal();
   } catch (e) {
     console.warn("LocalStorage save failed:", e);
+  }
+}
+
+function saveProfileToLocal() {
+  if (typeof localStorage === "undefined" || window.navigator?.webdriver || document.body?.dataset?.domClickMode || window.__echoRuntimeIsTesting) return;
+  try {
+    localStorage.setItem(RUNTIME_CONFIG.profileKey, JSON.stringify(state.profile));
+  } catch (error) {
+    console.warn("Profile save failed:", error);
+  }
+}
+
+function loadProfileFromLocal() {
+  try {
+    const rawProfile = localStorage.getItem(RUNTIME_CONFIG.profileKey);
+    state.profile = PROGRESSION.createProfile(rawProfile ? JSON.parse(rawProfile) : {});
+  } catch (error) {
+    console.warn("Profile load failed:", error);
+    state.profile = PROGRESSION.createProfile();
   }
 }
 
 function loadGameFromLocal() {
   if (typeof window === "undefined" || typeof localStorage === "undefined" || window.navigator?.webdriver || document.body?.dataset?.domClickMode || window.__echoRuntimeIsTesting) return;
   try {
+    loadProfileFromLocal();
     const preferredTheme = localStorage.getItem(THEME_PREFERENCE_KEY);
     state.theme = preferredTheme === "dark" ? "dark" : "light";
-    const raw = localStorage.getItem("echo_string_save_v1.1");
+    const raw = localStorage.getItem(RUNTIME_CONFIG.saveKey);
     if (!raw) {
+      state.run = PROGRESSION.createRun(state.profile, state.testMode);
+      state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
+      state.ink = state.maxInk;
       applyTheme();
       return;
     }
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed.zone === "number") {
+      const requestedMode = new URLSearchParams(window.location.search).get("mode");
+      if (!requestedMode && TEST_MODES[parsed.testMode]) state.testMode = parsed.testMode;
+      state.run = PROGRESSION.createRun(state.profile, state.testMode, parsed.run);
+      state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
       state.zone = parsed.zone;
-      state.ink = parsed.ink;
-      state.inventory = parsed.inventory || [];
+      state.ink = Math.min(state.maxInk, Number.isFinite(parsed.ink) ? parsed.ink : state.maxInk);
+      state.inventory = (parsed.inventory || []).slice(0, PROGRESSION.inventoryCapacity(state.profile));
       state.flags = parsed.flags || {};
       state.unlockedZones = parsed.unlockedZones || ["Z1"];
       const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
@@ -326,6 +372,9 @@ function loadGameFromLocal() {
       applyTheme();
       log("本地从存档自动载入成功，欢迎回来。", "good");
     } else {
+      state.run = PROGRESSION.createRun(state.profile, state.testMode);
+      state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
+      state.ink = state.maxInk;
       applyTheme();
     }
   } catch (e) {
@@ -415,12 +464,13 @@ function triggerVisualRipple(reactionId, targetId) {
 const TEST_MODES = {
   guided: "引导",
   low: "探索",
+  expedition: "远征",
   debug: "沙盒"
 };
 
-const BUILD_LABEL = "1.0.0";
-const THEME_PREFERENCE_KEY = "echo_string_theme_preference_v1";
-const BUILD_NAME = "Public Playtest";
+const BUILD_LABEL = RUNTIME_CONFIG.version;
+const THEME_PREFERENCE_KEY = RUNTIME_CONFIG.themePreferenceKey;
+const BUILD_NAME = RUNTIME_CONFIG.name;
 const BUILD_ROLLOUT = [
   { version: "UX11", focus: "低引导自动回归" },
   { version: "UX12", focus: "卡点与软锁审计" },
@@ -433,7 +483,8 @@ const BUILD_ROLLOUT = [
   { version: "UX19", focus: "验证脚本加严" },
   { version: "UX20", focus: "生产文档收口" },
   { version: "UX21", focus: "真人试玩反馈硬化" },
-  { version: "1.0.0", focus: "公开发布与圆润视觉系统" }
+  { version: "1.0.0", focus: "公开发布与圆润视觉系统" },
+  { version: "1.1.0", focus: "远征压力、永久铭文与长期纪行" }
 ];
 
 const TAG_CAUSES = {
@@ -1084,6 +1135,8 @@ function boss(id, name, tags) {
   return b;
 }
 
+const INITIAL_PROFILE = PROGRESSION.createProfile();
+
 const state = {
   sessionId: createSessionId(),
   zone: 0,
@@ -1108,7 +1161,10 @@ const state = {
   unlockedZones: ["Z1"],
   completionSfxPlayed: false,
   theme: "light",
-  language: "zh-Hans"
+  language: "zh-Hans",
+  chronicleExpanded: false,
+  profile: INITIAL_PROFILE,
+  run: PROGRESSION.createRun(INITIAL_PROFILE, "guided")
 };
 
 const el = {
@@ -1135,6 +1191,7 @@ const el = {
   reflectionBox: document.getElementById("reflectionBox"),
   metricsBox: document.getElementById("metricsBox"),
   sessionStatus: document.getElementById("sessionStatus"),
+  chroniclePanel: document.getElementById("chroniclePanel"),
   undoBtn: document.getElementById("undoBtn"),
   checkpointBtn: document.getElementById("checkpointBtn"),
   shareLinkBtn: document.getElementById("shareLinkBtn"),
@@ -1156,6 +1213,86 @@ const el = {
   inspectorPanel: document.querySelector(".inspector-panel"),
   bottomPanel: document.querySelector(".bottom-panel")
 };
+
+function inventoryCapacity() {
+  return PROGRESSION.inventoryCapacity(state.profile);
+}
+
+function extractCost(definition) {
+  return definition?.extract ?? 0;
+}
+
+function injectCost(definition) {
+  return PROGRESSION.injectCost(definition?.inject ?? 0, state.run);
+}
+
+function isExpedition() {
+  return state.testMode === "expedition";
+}
+
+function usesLowGuidance() {
+  return state.testMode === "low" || isExpedition();
+}
+
+function runIsFailed() {
+  return Boolean(isExpedition() && state.run?.failed);
+}
+
+function actionBlockedByRun() {
+  if (!runIsFailed()) return false;
+  log("本轮远征已经崩解，请先重新整备。", "warn");
+  render();
+  return true;
+}
+
+function advanceThreat(base, source) {
+  if (!isExpedition() || runIsFailed() || isCompleted()) return;
+  const gain = PROGRESSION.threatGain(base, state.profile, state.run);
+  if (!gain) return;
+  state.run.threat = Math.min(100, state.run.threat + gain);
+  if (state.run.threat < 100) return;
+
+  state.run.collapses += 1;
+  state.run.integrity -= 1;
+  state.profile.totalCollapses += 1;
+  if (state.run.integrity <= 0) {
+    state.run.integrity = 0;
+    state.run.failed = true;
+    log(`第 ${state.run.cycle} 轮远征在${source}后彻底崩解。保留永久铭文，可重新整备。`, "bad", "expedition-failed");
+  } else {
+    state.run.threat = 35;
+    log(`语义崩解吞噬了一层稳定度：剩余 ${state.run.integrity}/3。威胁回落，本轮仍可继续。`, "warn", "semantic-collapse");
+  }
+  saveProfileToLocal();
+  saveGameToLocal();
+}
+
+function recoverThreatOnAdvance() {
+  if (!isExpedition()) return;
+  state.run.threat = Math.max(0, state.run.threat - PROGRESSION.threatRecovery(state.run));
+}
+
+function finalizeRunProgression() {
+  if (!isCompleted() || runIsFailed() || state.run.rewardClaimed) return 0;
+  const result = PROGRESSION.applyCompletion(state.profile, state.run, currentAudit().score);
+  state.run.lastReward = result.reward;
+  saveProfileToLocal();
+  saveGameToLocal();
+  return result.reward;
+}
+
+function buyChronicleUpgrade(upgradeId) {
+  const result = PROGRESSION.purchaseUpgrade(state.profile, upgradeId);
+  if (!result.ok) {
+    log(result.reason, "warn");
+    return render();
+  }
+  state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
+  state.ink = Math.min(state.maxInk, state.ink + (upgradeId === "inkwell" ? 2 : 0));
+  saveProfileToLocal();
+  log(`铭文“${result.upgrade.name}”提升至 ${result.level} 级，消耗 ${result.cost} 枚回声残片。`, "good");
+  render();
+}
 
 function zone() {
   return state.zones[state.zone];
@@ -1265,7 +1402,9 @@ function currentModeLabel() {
 
 function setTestMode(mode) {
   if (!TEST_MODES[mode] || state.testMode === mode) return;
+  const changesRunType = mode === "expedition" || state.testMode === "expedition";
   state.testMode = mode;
+  if (changesRunType) return resetGame();
   state.metrics.testMode = mode;
   state.metrics.modeChanges.push({
     mode,
@@ -1284,6 +1423,9 @@ function applyInitialModeFromUrl() {
   if (language) state.language = LANGUAGES[language] ? language : "zh-Hans";
   if (!TEST_MODES[mode] || state.testMode === mode) return;
   state.testMode = mode;
+  state.run = PROGRESSION.createRun(state.profile, mode);
+  state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
+  state.ink = state.maxInk;
   state.metrics.testMode = mode;
   state.metrics.modeChanges = [{ mode, label: TEST_MODES[mode], t: 0, zone: "Z1" }];
 }
@@ -1554,7 +1696,7 @@ function currentAudit() {
   const failedAssertions = state.metrics.routeAssertions.filter((item) => !item.passed);
   failedAssertions.forEach((item) => risks.push(`回归断言失败：${item.label}`));
   experience.frictions.slice(0, 2).forEach((item) => risks.push(item));
-  if (state.inventory.length >= 3) risks.push("词库已满。");
+  if (state.inventory.length >= inventoryCapacity()) risks.push("词库已满。");
   if (!state.checkpoints[zone().id] && !isCompleted()) risks.push("当前区域缺少检查点。");
   if (state.zone >= 5 && bossCounterTypes < 3 && !state.flags.bossDefeated) risks.push("Boss反制覆盖不足。");
   const score = Math.max(0, Math.min(100,
@@ -1697,6 +1839,7 @@ function selectObject(id) {
 }
 
 function scanSelected() {
+  if (actionBlockedByRun()) return;
   const obj = selectedObject();
   if (!obj) return log("先选择一个对象。", "warn");
   obj.scanned = true;
@@ -1704,6 +1847,7 @@ function scanSelected() {
   markFirst("firstScanSec");
   audio.playSfx("scan");
   log(`扫描到 ${obj.name}：${obj.currentTags.map(tagName).join(" / ") || "无显性词缀"}。`, "good");
+  advanceThreat(2, "扫描");
   render();
 }
 
@@ -1713,6 +1857,7 @@ function selectTag(tagId) {
 }
 
 function extractSelectedTag() {
+  if (actionBlockedByRun()) return;
   const obj = selectedObject();
   const tagId = state.selectedTagId;
   if (!obj) return log("先选择对象。", "warn");
@@ -1720,13 +1865,14 @@ function extractSelectedTag() {
   if (!tagId) return log("先点选一个词缀。", "warn");
   const mechanicHint = z5MechanicHint(obj);
   if (mechanicHint) return log(mechanicHint, "warn");
-  if (state.inventory.length >= 3) return log("临时词库已满，最多携带3个词缀。", "bad", "inventory-full");
+  if (state.inventory.length >= inventoryCapacity()) return log(`临时词库已满，最多携带${inventoryCapacity()}个词缀。`, "bad", "inventory-full");
   const def = tag(tagId);
   if (!def) return log("未知词缀，无法剥离。", "bad", "unknown-tag");
-  if (state.ink < def.extract) return log("原墨不足，无法剥离。", "bad", "ink-low");
+  const cost = extractCost(def);
+  if (state.ink < cost) return log("原墨不足，无法剥离。", "bad", "ink-low");
   if (!canTakeVisibleTag(obj, tagId)) return log(`${obj.name} 当前没有可剥离的“${def.name}”。`, "bad", "tag-unavailable");
   pushUndo(`剥离“${def.name}”`);
-  state.ink -= def.extract;
+  state.ink -= cost;
   state.inventory.push(tagId);
   state.selectedInventoryIndex = state.inventory.length - 1;
   state.metrics.extracts += 1;
@@ -1736,6 +1882,7 @@ function extractSelectedTag() {
     obj.currentTags = obj.currentTags.filter((item) => item !== tagId);
   }
   log(`剥离“${def.name}”，收入临时词库。`, "good");
+  advanceThreat(4, "剥离");
   selectGuidedRecommendedTarget(obj.id);
   render();
 }
@@ -1746,6 +1893,7 @@ function selectInventory(index) {
 }
 
 function injectSelectedInventory() {
+  if (actionBlockedByRun()) return;
   const obj = selectedObject();
   if (!obj) return log("先选择注入目标。", "warn");
   if (!obj.scanned) return log("先扫描目标，确认槽位。", "warn");
@@ -1755,17 +1903,18 @@ function injectSelectedInventory() {
   if (!obj.openSlots.includes(def.slot)) return log(`${obj.name} 没有${slotName(def.slot)}，无法写入“${def.name}”。`, "bad", "slot-missing");
   if (slotLockedForTag(obj, tagId)) return log(`${obj.name} 的${slotName(def.slot)}被锁定。`, "bad", "slot-locked");
   if (!def.compatible.includes(obj.type)) return log(`“${def.name}”不能作用于${objectTypeName(obj.type)}。`, "bad", "incompatible");
-  if (state.ink < def.inject) return log("原墨不足，无法注入。", "bad", "ink-low");
+  const cost = injectCost(def);
+  if (state.ink < cost) return log("原墨不足，无法注入。", "bad", "ink-low");
 
   const collisionReaction = fieldCollisionReaction(obj, tagId);
   const suppressReplacementReturn = bossAllowsPhaseStructureWrite(obj, tagId);
   const replacedTags = obj.currentTags.filter((item) => tag(item)?.slot === def.slot && item !== tagId);
   pushUndo(`注入“${def.name}”`);
-  state.ink -= def.inject;
+  state.ink -= cost;
   obj.currentTags = obj.currentTags.filter((item) => tag(item)?.slot !== def.slot);
   obj.currentTags.push(tagId);
   state.inventory.splice(state.selectedInventoryIndex, 1);
-  if (replacedTags.length === 1 && state.inventory.length < 3 && !suppressReplacementReturn) {
+  if (replacedTags.length === 1 && state.inventory.length < inventoryCapacity() && !suppressReplacementReturn) {
     state.inventory.push(replacedTags[0]);
     state.selectedInventoryIndex = state.inventory.length - 1;
     log(`被替换的“${tagName(replacedTags[0])}”回流到词库。`, "good");
@@ -1783,6 +1932,7 @@ function injectSelectedInventory() {
   applyImmediateEffects(obj, tagId);
   if (collisionReaction) triggerReaction(obj, collisionReaction);
   resolveReactions(obj);
+  advanceThreat(6, "注入");
   saveGameToLocal();
   render();
 }
@@ -1910,6 +2060,7 @@ function restoreBossGuardedStructure(obj) {
 }
 
 function heavyStrike() {
+  if (actionBlockedByRun()) return;
   const obj = selectedObject();
   if (!obj) return log("先选择目标。", "warn");
   state.metrics.heavyStrikes += 1;
@@ -1920,6 +2071,7 @@ function heavyStrike() {
     spawnFloatingDamage("击碎", "gate", true);
     triggerScreenShake("heavy");
     log("封文大门被击碎。", "good");
+    advanceThreat(6, "重击");
     saveGameToLocal();
     return render();
   }
@@ -1955,6 +2107,7 @@ function heavyStrike() {
       log(`${obj.name} 被击败。`, "good");
       if (obj.id === "warden") state.flags.bossDefeated = true;
     }
+    advanceThreat(6, "重击");
     saveGameToLocal();
     return render();
   }
@@ -1964,6 +2117,7 @@ function heavyStrike() {
 }
 
 function parry() {
+  if (actionBlockedByRun()) return;
   const obj = selectedObject();
   if (!obj || obj.hp == null || obj.defeated) return log("选择一个正在战斗的敌人。", "warn");
   state.metrics.parries += 1;
@@ -1973,40 +2127,48 @@ function parry() {
   spawnFloatingDamage("PARRY", obj.id, false, true);
   triggerScreenShake("medium");
   log(`完美弹反 ${obj.name}，语义破绽打开。`, "good");
+  advanceThreat(4, "弹反");
   saveGameToLocal();
   render();
 }
 
 function moveBlock() {
+  if (actionBlockedByRun()) return;
   const obj = selectedObject();
   if (!obj || obj.id !== "block") return log("选择压机关石。", "warn");
   if (!obj.currentTags.includes("Semantic.Mass.Light")) return log("石头太沉，先写入“轻盈”。", "warn");
   state.flags.blockMoved = true;
   log("压机关石被推到机关板上。", "good");
+  advanceThreat(3, "推动机关");
   render();
 }
 
 function pressPlate() {
+  if (actionBlockedByRun()) return;
   const obj = selectedObject();
   if (!obj || obj.id !== "block") return log("选择压机关石。", "warn");
   if (!state.flags.blockMoved) return log("先把石头推到机关板。", "warn");
   if (!obj.currentTags.includes("Semantic.Mass.Heavy")) return log("机关需要重量，给石头恢复“沉重”。", "warn");
   state.flags.platePressed = true;
   log("机关板被压住，出口栅门打开。", "good");
+  advanceThreat(3, "启动机关");
   render();
 }
 
 function gatherDebris() {
+  if (actionBlockedByRun()) return;
   if (zone().id !== "Z5") return;
   const obj = selectedObject();
   if (!obj || obj.id !== "pullPillar") return log("选择吸引力场柱。", "warn");
   if (!obj.currentTags.includes("Semantic.Field.Attract")) return log("力场柱当前不是“吸引”。", "warn");
   state.flags.debrisGathered = true;
   log("碎片被吸引到桥中央。", "good");
+  advanceThreat(3, "聚拢碎片");
   render();
 }
 
 function formBridge() {
+  if (actionBlockedByRun()) return;
   if (zone().id !== "Z5") return;
   const obj = selectedObject();
   if (!obj || obj.id !== "pushPillar") return log("选择排斥力场柱。", "warn");
@@ -2014,10 +2176,12 @@ function formBridge() {
   if (!state.flags.debrisGathered && !state.flags.fieldPulse) return log("先聚拢碎片，或者触发力场震荡。", "warn");
   state.flags.bridgeFormed = true;
   log("碎片进入锚点，临时桥面形成。", "good");
+  advanceThreat(3, "形成桥面");
   render();
 }
 
 function nextZone() {
+  if (actionBlockedByRun()) return;
   if (!zone().complete(state)) return log("当前目标还没完成。", "warn");
   if (isFinalZone()) return log("切片已经完成。", "good");
   awardZoneMastery();
@@ -2032,7 +2196,8 @@ function nextZone() {
     state.selectedInventoryIndex = null;
     state.inventory = [];
     state.undoStack = [];
-    state.ink = Math.min(12, state.ink + 4);
+    state.ink = Math.min(state.maxInk, state.ink + 4);
+    recoverThreatOnAdvance();
     
     // Unlock next zone in progression
     const nextZoneId = zone().id;
@@ -2057,7 +2222,9 @@ function resetGame() {
   state.sessionId = createSessionId();
   state.zone = 0;
   state.testMode = mode;
-  state.ink = 12;
+  state.run = PROGRESSION.createRun(state.profile, mode);
+  state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
+  state.ink = state.maxInk;
   state.inventory = [];
   state.selectedObjectId = null;
   state.selectedTagId = null;
@@ -2239,12 +2406,12 @@ function canExtract() {
   if (!tagId) return allowed(false, "先点选目标身上的词缀。");
   const mechanicHint = z5MechanicHint(obj);
   if (mechanicHint) return allowed(false, mechanicHint);
-  if (state.inventory.length >= 3) return allowed(false, "临时词库已满。");
+  if (state.inventory.length >= inventoryCapacity()) return allowed(false, "临时词库已满。");
   const def = tag(tagId);
   if (!def) return allowed(false, "未知词缀。");
-  if (state.ink < def.extract) return allowed(false, "原墨不足。");
+  if (state.ink < extractCost(def)) return allowed(false, "原墨不足。");
   if (!canTakeVisibleTag(obj, tagId)) return allowed(false, "目标当前没有这个可剥离词缀。");
-  return allowed(true, `消耗${def.extract}原墨剥离“${def.name}”。`);
+  return allowed(true, `消耗${extractCost(def)}原墨剥离“${def.name}”。`);
 }
 
 function canInject() {
@@ -2257,8 +2424,8 @@ function canInject() {
   if (!obj.openSlots.includes(def.slot)) return allowed(false, `${obj.name} 没有${slotName(def.slot)}。`);
   if (slotLockedForTag(obj, tagId)) return allowed(false, `${slotName(def.slot)}被锁定。`);
   if (!def.compatible.includes(obj.type)) return allowed(false, `“${def.name}”不能作用于${objectTypeName(obj.type)}。`);
-  if (state.ink < def.inject) return allowed(false, "原墨不足。");
-  return allowed(true, `消耗${def.inject}原墨注入“${def.name}”。`);
+  if (state.ink < injectCost(def)) return allowed(false, "原墨不足。");
+  return allowed(true, `消耗${injectCost(def)}原墨注入“${def.name}”。`);
 }
 
 function canHeavyStrike() {
@@ -2314,14 +2481,14 @@ function canFormBridge() {
 
 function z5MechanicHint(obj = selectedObject()) {
   if (zone().id !== "Z5" || !obj?.scanned) return "";
-  if (state.testMode === "low") return "";
+  if (usesLowGuidance()) return "";
   if (obj.id === "pullPillar" && !state.flags.debrisGathered) return "这是碎桥机关的吸引端：先用“聚拢碎片”驱动桥面，不需要把力场词当普通词源剥离。";
   if (obj.id === "pushPillar" && state.flags.debrisGathered && !state.flags.bridgeFormed) return "这是碎桥机关的排斥端：先用“形成桥面”把碎片推入锚点，不需要把力场词当普通词源剥离。";
   return "";
 }
 
 function nextHint() {
-  if (state.testMode === "low") return lowGuidance();
+  if (usesLowGuidance()) return lowGuidance();
   if (isFinalZone()) return "切片完成。可以重置后重跑，或查看事件日志复盘路径。";
   if (zone().complete(state)) return "当前目标已达成，进入下一区域。";
 
@@ -2529,7 +2696,7 @@ function decisionSummary() {
     : "空";
   const pressure = state.ink <= 3
     ? "原墨偏紧"
-    : state.inventory.length >= 3
+    : state.inventory.length >= inventoryCapacity()
       ? "词库已满"
       : "资源稳定";
   const targetText = selected
@@ -2544,7 +2711,7 @@ function decisionSummary() {
 }
 
 function recommendedObjectIds() {
-  if (state.testMode === "low") return [];
+  if (usesLowGuidance()) return [];
   const z = zone().id;
   if (zone().complete(state)) return [];
   if (z === "Z1") {
@@ -2635,7 +2802,7 @@ function objectStateLabel(obj, recommendedIds) {
 
 function bossPhasePlanHtml(obj) {
   if (obj?.id !== "warden") return "";
-  const low = state.testMode === "low";
+  const low = usesLowGuidance();
   const phases = low
     ? [
       { layer: 3, label: "介质冲突", detail: "寻找会让护文过载的环境组合" },
@@ -2669,7 +2836,7 @@ function previewForSelectedObject() {
   const inventoryTag = state.inventory[state.selectedInventoryIndex];
   if (inventoryTag) {
     const preview = injectionPreview(obj, inventoryTag);
-    if (state.testMode !== "low" || preview.tone === "bad") return preview;
+    if (!usesLowGuidance() || preview.tone === "bad") return preview;
     return {
       tone: "good",
       title: `写入检验：${tagName(inventoryTag)} -> ${obj.name}`,
@@ -2686,7 +2853,7 @@ function previewForSelectedObject() {
     if (!def) return { tone: "bad", title: "未知词缀", lines: ["这个词缀没有定义。"] };
     const canTake = canExtract();
     const lines = [
-      `取词消耗：${def.extract} 原墨。`,
+      `取词消耗：${extractCost(def)} 原墨。`,
       obj.persistentSource ? "这是稳定词源，剥离后不会耗尽。" : "剥离后会从目标身上移除该词缀。"
     ];
     if (!canTake.enabled) lines.unshift(canTake.reason);
@@ -2705,7 +2872,7 @@ function injectionPreview(obj, tagId) {
     return { tone: "bad", title: `写入预览：${def.name}`, lines };
   }
   const replaced = obj.currentTags.filter((item) => tag(item)?.slot === def.slot && item !== tagId);
-  lines.push(`写入槽位：${slotName(def.slot)}，消耗 ${def.inject} 原墨。`);
+  lines.push(`写入槽位：${slotName(def.slot)}，消耗 ${injectCost(def)} 原墨。`);
   if (bossAllowsPhaseStructureWrite(obj, tagId)) lines.push("冻结裂隙允许临时写入结构词，用于打穿第二层护文。");
   if (replaced.length) lines.push(`<span class="replacement-flow">${replaced.map(tagName).join(" / ")} -> ${def.name}</span> 被替换词会回流到词库。`);
   const reactions = reactionPreview(obj, tagId);
@@ -2742,20 +2909,20 @@ function renderStatusMeters() {
   const zonePct = state.zones.length ? (state.zone + stepPct) / state.zones.length : 0;
   const timePct = Math.min(1, elapsedSeconds() / 180);
   document.body.style.setProperty("--ink-pct", `${Math.max(0, Math.min(1, state.ink / state.maxInk)) * 100}%`);
-  document.body.style.setProperty("--inventory-pct", `${Math.max(0, Math.min(1, state.inventory.length / 3)) * 100}%`);
+  document.body.style.setProperty("--inventory-pct", `${Math.max(0, Math.min(1, state.inventory.length / inventoryCapacity())) * 100}%`);
   document.body.style.setProperty("--zone-pct", `${Math.max(0, Math.min(1, zonePct)) * 100}%`);
   document.body.style.setProperty("--time-pct", `${timePct * 100}%`);
   document.body.style.setProperty("--resonance-pct", `${discoveredReactionCount() / REACTION_DISCOVERIES.length * 100}%`);
 }
 
 function ensureGuidedSelection() {
-  if (state.testMode === "low" || isCompleted()) return;
+  if (usesLowGuidance() || isCompleted()) return;
   if (state.selectedObjectId && objectById(state.selectedObjectId)) return;
   selectGuidedRecommendedTarget();
 }
 
 function selectGuidedRecommendedTarget(preferDifferentId = "") {
-  if (state.testMode === "low" || isCompleted()) return false;
+  if (usesLowGuidance() || isCompleted()) return false;
   const ids = recommendedObjectIds();
   const nextId = ids.find((id) => id !== preferDifferentId) || ids[0];
   if (!nextId || !objectById(nextId)) return false;
@@ -2768,7 +2935,9 @@ function recoveryState() {
   const issues = [];
   const obj = selectedObject();
   const inventoryTag = state.inventory[state.selectedInventoryIndex];
-  if (isFinalZone() && isCompleted()) {
+  if (runIsFailed()) {
+    issues.push("远征稳定度耗尽，需要重新整备本轮。");
+  } else if (isFinalZone() && isCompleted()) {
     issues.push("切片已完成，可以查看总结或重开。");
   } else if (zone().complete(state)) {
     issues.push("当前目标已完成，可以进入下一区域。");
@@ -2777,7 +2946,7 @@ function recoveryState() {
     if (obj && !obj.scanned) issues.push("当前对象未扫描，先确认词缀和槽位。");
     const mechanicHint = z5MechanicHint(obj);
     if (mechanicHint) issues.push(mechanicHint);
-    if (state.inventory.length >= 3) issues.push("临时词库已满，需要写入、清空或重置区。");
+    if (state.inventory.length >= inventoryCapacity()) issues.push("临时词库已满，需要写入、清空或重置区。");
     if (inventoryTag) {
       const compatibleTargets = zoneObjects().filter((item) => objectWriteReadiness(item).status === "compatible");
       if (!compatibleTargets.length) issues.push("当前选中词还没有明确可写入目标，先扫描候选对象。");
@@ -2797,6 +2966,7 @@ function renderSessionStatus() {
     <div class="session-chip"><span>会话</span><strong>${state.sessionId}</strong></div>
     <div class="session-chip"><span>模式</span><strong>${currentModeLabel()}</strong></div>
     <div class="session-chip"><span>构建</span><strong>${BUILD_LABEL}</strong></div>
+    <div class="session-chip"><span>${isExpedition() ? "轮次" : "纪行"}</span><strong>${isExpedition() ? state.run.cycle : state.profile.completedRuns}</strong></div>
     <div class="session-chip wide"><span>恢复建议</span><strong>${recovery.primary || "当前没有明显阻塞。"}</strong></div>
   `;
   el.undoBtn.disabled = !canUndo();
@@ -2805,12 +2975,74 @@ function renderSessionStatus() {
   el.checkpointBtn.title = state.checkpoints[zone().id] ? "回到当前区域入口检查点。" : "当前区域没有检查点。";
 }
 
+function renderChroniclePanel() {
+  if (!el.chroniclePanel) return;
+  const modifiers = PROGRESSION.modifierDetails(state.run);
+  const cycle = isExpedition() ? state.run.cycle : state.profile.expeditionWins + 1;
+  const modifierHtml = modifiers.length
+    ? modifiers.map((item) => `<span class="modifier-chip" title="${item.detail}"><b>${item.icon}</b>${item.name}</span>`).join("")
+    : '<span class="modifier-chip calm"><b>○</b>标准规则</span>';
+  const upgradeHtml = PROGRESSION.UPGRADES.map((upgrade) => {
+    const level = state.profile.upgrades[upgrade.id] || 0;
+    const maxed = level >= upgrade.maxLevel;
+    const cost = maxed ? 0 : upgrade.costs[level];
+    const affordable = !maxed && state.profile.echo >= cost;
+    return `
+      <article class="inscription-card${maxed ? " maxed" : ""}">
+        <span class="inscription-icon">${upgrade.icon}</span>
+        <div>
+          <strong>${upgrade.name}<em>Lv.${level}/${upgrade.maxLevel}</em></strong>
+          <small>${upgrade.detail}</small>
+        </div>
+        <button type="button" data-upgrade="${upgrade.id}" ${maxed || !affordable ? "disabled" : ""} title="${maxed ? "已升满" : `消耗 ${cost} 枚回声残片`}">
+          ${maxed ? "已满" : `${cost} ◈`}
+        </button>
+      </article>
+    `;
+  }).join("");
+  const threat = isExpedition() ? state.run.threat : 0;
+  const threatTone = threat >= 75 ? "danger" : threat >= 45 ? "warning" : "";
+  const expeditionAction = isExpedition()
+    ? `<button class="chronicle-primary" type="button" data-chronicle-action="restart-expedition">${runIsFailed() ? "重新整备" : "重开本轮"}</button>`
+    : `<button class="chronicle-primary" type="button" data-chronicle-action="start-expedition">开启第 ${cycle} 轮远征</button>`;
+
+  el.chroniclePanel.className = `chronicle-panel${isExpedition() ? " expedition-active" : " chronicle-idle"}${runIsFailed() ? " run-failed" : ""}${state.chronicleExpanded ? " mobile-expanded" : ""}`;
+  el.chroniclePanel.innerHTML = `
+    <div class="chronicle-summary">
+      <div class="chronicle-title">
+        <span class="label">长期纪行 · 1.1.0</span>
+        <strong>${isExpedition() ? `第 ${state.run.cycle} 轮远征` : "修正者档案"}</strong>
+        <small>${runIsFailed() ? "本轮稳定度耗尽，永久成长已保留。" : "完成轮次、积累残片、升级铭文，再挑战更高噪声。"}</small>
+      </div>
+      <div class="chronicle-stats">
+        <span><small>回声残片</small><strong>${state.profile.echo} ◈</strong></span>
+        <span><small>完成轮次</small><strong>${state.profile.completedRuns}</strong></span>
+        <span><small>远征胜场</small><strong>${state.profile.expeditionWins}</strong></span>
+        <span><small>最高轮次</small><strong>${state.profile.highestCycle || "-"}</strong></span>
+      </div>
+      <div class="chronicle-action">
+        ${expeditionAction}
+        <button class="chronicle-toggle" type="button" data-chronicle-action="toggle-inscriptions">${state.chronicleExpanded ? "收起铭文" : "铭文升级"}</button>
+      </div>
+    </div>
+    <div class="expedition-pressure ${threatTone}">
+      <div>
+        <span>语义威胁 <strong>${threat}/100</strong></span>
+        <span>稳定度 <strong>${isExpedition() ? `${state.run.integrity}/3` : "安全"}</strong></span>
+      </div>
+      <i><b style="width:${threat}%"></b></i>
+      <div class="modifier-list">${modifierHtml}</div>
+    </div>
+    <div class="inscription-grid">${upgradeHtml}</div>
+  `;
+}
+
 function render() {
   renderModeControls();
   ensureGuidedSelection();
   renderStatusMeters();
   el.inkValue.textContent = state.ink;
-  el.inventoryCount.textContent = `${state.inventory.length}/3`;
+  el.inventoryCount.textContent = `${state.inventory.length}/${inventoryCapacity()}`;
   el.zoneIndex.textContent = zone().id;
   el.elapsedValue.textContent = formatTime(state.metrics.completedAt ?? elapsedSeconds());
   if (el.resonanceValue) el.resonanceValue.textContent = `${discoveredReactionCount()}/${REACTION_DISCOVERIES.length}`;
@@ -2820,6 +3052,7 @@ function render() {
   renderResultPulse();
   renderDecisionStrip();
   renderMasteryPanel();
+  renderChroniclePanel();
   renderStage();
   renderInspector();
   renderInventory();
@@ -2948,7 +3181,7 @@ function renderSteps() {
 
 function renderStage() {
   el.zoneTitle.textContent = `${zone().id} ${zone().name}`;
-  el.zoneObjective.textContent = state.testMode === "low" ? (LOW_OBJECTIVES[zone().id] || zone().objective) : zone().objective;
+  el.zoneObjective.textContent = usesLowGuidance() ? (LOW_OBJECTIVES[zone().id] || zone().objective) : zone().objective;
   el.sceneMap.innerHTML = "";
   const recommendedIds = recommendedObjectIds();
   zoneObjects().forEach((obj) => {
@@ -3002,6 +3235,17 @@ function renderStage() {
 }
 
 function renderActions() {
+  if (runIsFailed()) {
+    el.contextActions.innerHTML = "";
+    const restart = document.createElement("button");
+    restart.className = "action-button primary ready expedition-restart";
+    restart.type = "button";
+    restart.textContent = "重新整备远征";
+    restart.addEventListener("click", resetGame);
+    el.contextActions.appendChild(restart);
+    el.actionHelp.textContent = "稳定度已经耗尽。本轮进度终止，但永久铭文和回声残片不会丢失。";
+    return;
+  }
   const canAdvance = zone().complete(state);
   const scanState = canScan();
   const actions = [
@@ -3051,7 +3295,7 @@ function renderActions() {
     });
     el.contextActions.appendChild(wrapper);
   });
-  if (state.testMode === "low") {
+  if (usesLowGuidance()) {
     el.actionHelp.textContent = selectedObject() && disabledReasons.length ? disabledReasons.slice(0, 1).join("；") : "";
     return;
   }
@@ -3094,7 +3338,7 @@ function renderInspector() {
   const tagButtons = obj.currentTags.map((tagId) => {
     const def = tag(tagId);
     const selected = tagId === state.selectedTagId ? " selected" : "";
-    return `<button class="tag-chip${selected}" data-tag="${tagId}" type="button" title="${tagCause(tagId)}"><span style="background:${def?.color || "#ddd"}"></span><strong>${def?.name || tagId}</strong><small>${tagCause(tagId)}</small><em class="chip-cost">取${def?.extract ?? "-"}</em></button>`;
+    return `<button class="tag-chip${selected}" data-tag="${tagId}" type="button" title="${tagCause(tagId)}"><span style="background:${def?.color || "#ddd"}"></span><strong>${def?.name || tagId}</strong><small>${tagCause(tagId)}</small><em class="chip-cost">取${def ? extractCost(def) : "-"}</em></button>`;
   }).join("");
   const lockText = obj.lockedSlots.length ? `锁定：${obj.lockedSlots.map(slotName).join(" / ")}` : "无锁定槽";
   const preview = previewForSelectedObject();
@@ -3142,7 +3386,7 @@ function renderInventory() {
     el.inventoryList.innerHTML = `
       <div class="empty-state">
         <strong>词库为空</strong>
-        <span>${state.testMode === "low" ? "从对象取词后会显示在这里。" : "扫描推荐目标，点选词缀并剥离。下一步写入目标会在场景中高亮。"}</span>
+        <span>${usesLowGuidance() ? "从对象取词后会显示在这里。" : "扫描推荐目标，点选词缀并剥离。下一步写入目标会在场景中高亮。"}</span>
       </div>
     `;
     return;
@@ -3156,7 +3400,7 @@ function renderInventory() {
     button.dataset.index = String(index);
     button.title = tagCause(tagId);
     button.setAttribute("aria-pressed", index === state.selectedInventoryIndex ? "true" : "false");
-    button.innerHTML = `<span style="background:${def.color}"></span><strong>${def.name}</strong><small>${inventoryRouteHint(tagId)}</small><em class="chip-cost">写${def.inject}</em>`;
+    button.innerHTML = `<span style="background:${def.color}"></span><strong>${def.name}</strong><small>${inventoryRouteHint(tagId)}</small><em class="chip-cost">写${injectCost(def)}</em>`;
     button.addEventListener("click", () => selectInventory(index));
     el.inventoryList.appendChild(button);
   });
@@ -3164,7 +3408,7 @@ function renderInventory() {
 
 function inventoryRouteHint(tagId) {
   const def = tag(tagId);
-  if (!def || state.testMode === "low") return tagCause(tagId);
+  if (!def || usesLowGuidance()) return tagCause(tagId);
   const recommendedTargets = recommendedObjectIds()
     .map(objectById)
     .filter((obj) => obj && obj.openSlots.includes(def.slot) && def.compatible.includes(obj.type));
@@ -3275,6 +3519,7 @@ function calculateEndingBadges(report) {
 
 function renderCompletionPanel() {
   if (!el.completionPanel) return;
+  finalizeRunProgression();
   const report = buildReport();
   if (!report.completed) {
     el.completionPanel.className = "completion-panel hidden";
@@ -3335,6 +3580,7 @@ function renderCompletionPanel() {
         <h2>断句庭院切片完成</h2>
       </div>
       <div class="completion-actions">
+        <button class="quiet-button expedition-launch" type="button" data-completion-action="start-expedition">下一轮远征</button>
         <button class="quiet-button" type="button" data-completion-action="restart-guided">引导重开</button>
         <button class="quiet-button" type="button" data-completion-action="restart-low">低引导重开</button>
         <button class="quiet-button" type="button" data-completion-action="report">导出报告</button>
@@ -3350,6 +3596,7 @@ function renderCompletionPanel() {
       ${metricHtml("护文反制", report.metrics.bossPhaseCounters?.length ?? 0)}
       ${metricHtml("检查点", report.metrics.checkpointRestores)}
       ${metricHtml("撤销", report.metrics.undoUses)}
+      ${metricHtml("本轮残片", `+${state.run.lastReward || 0} ◈`)}
     </div>
     
     <div class="completion-badges-section">
@@ -3449,6 +3696,8 @@ function buildReport() {
     testMode: state.testMode,
     testModeLabel: currentModeLabel(),
     language: state.language,
+    profile: structuredClone(state.profile),
+    run: structuredClone(state.run),
     completed,
     elapsedSec: state.metrics.completedAt ?? elapsedSeconds(),
     activeZoneElapsedSec: activeZoneElapsedSec(),
@@ -3557,9 +3806,14 @@ function initSettings() {
   if (resetSaveDataBtn) {
     resetSaveDataBtn.addEventListener("click", () => {
       if (confirm("确定要清空本地存档吗？所有关卡进度将被重置。")) {
-        localStorage.removeItem("echo_string_save_v1.1");
+        localStorage.removeItem(RUNTIME_CONFIG.saveKey);
+        localStorage.removeItem(RUNTIME_CONFIG.profileKey);
+        state.profile = PROGRESSION.createProfile();
+        state.testMode = "guided";
+        state.run = PROGRESSION.createRun(state.profile, state.testMode);
+        state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
         state.zone = 0;
-        state.ink = 12;
+        state.ink = state.maxInk;
         state.inventory = [];
         state.flags = {};
         state.unlockedZones = ["Z1"];
@@ -3651,6 +3905,22 @@ el.restartSessionBtn.addEventListener("click", resetGame);
 el.modeButtons.forEach((button) => {
   button.addEventListener("click", () => setTestMode(button.dataset.mode));
 });
+if (el.chroniclePanel) {
+  el.chroniclePanel.addEventListener("click", (event) => {
+    const upgradeId = event.target?.closest?.("[data-upgrade]")?.dataset?.upgrade;
+    if (upgradeId) return buyChronicleUpgrade(upgradeId);
+    const actionName = event.target?.closest?.("[data-chronicle-action]")?.dataset?.chronicleAction;
+    if (!actionName) return;
+    if (actionName === "toggle-inscriptions") {
+      state.chronicleExpanded = !state.chronicleExpanded;
+      return renderChroniclePanel();
+    }
+    if (actionName === "start-expedition" || actionName === "restart-expedition") {
+      state.testMode = "expedition";
+      resetGame();
+    }
+  });
+}
 if (el.themeToggleBtn) {
   el.themeToggleBtn.addEventListener("click", () => {
     state.theme = state.theme === "light" ? "dark" : "light";
@@ -3676,6 +3946,10 @@ el.completionPanel.addEventListener("click", (event) => {
   const actionName = event.target?.dataset?.completionAction;
   if (!actionName) return;
   if (actionName === "report") return downloadReport();
+  if (actionName === "start-expedition") {
+    state.testMode = "expedition";
+    return resetGame();
+  }
   if (actionName === "restart-guided") {
     state.testMode = "guided";
     return resetGame();
@@ -3706,11 +3980,14 @@ window.__echoString = {
   buildReport,
   setTestMode,
   setLanguage,
+  buyChronicleUpgrade,
   currentState: () => ({
     zone: zone().id,
     testMode: state.testMode,
     language: state.language,
     hint: nextHint(),
+    profile: structuredClone(state.profile),
+    run: structuredClone(state.run),
     metrics: structuredClone(state.metrics),
     flags: { ...state.flags }
   })

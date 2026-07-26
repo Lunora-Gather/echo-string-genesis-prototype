@@ -8,7 +8,7 @@ console.log(JSON.stringify(summary, null, 2));
 
 const failures = [];
 if (!summary.passed) failures.push("regression suite did not pass");
-if (summary.build !== "1.0.0") failures.push(`expected 1.0.0 build, got ${summary.build}`);
+if (summary.build !== "1.1.0") failures.push(`expected 1.1.0 build, got ${summary.build}`);
 for (const mode of ["guided", "low"]) {
   const item = summary[mode];
   if (!item.completed) failures.push(`${mode} route did not complete`);
@@ -21,6 +21,12 @@ for (const mode of ["guided", "low"]) {
   if (item.failureEvents !== 0) failures.push(`${mode} failure events expected 0, got ${item.failureEvents}`);
   if (item.experienceStatus !== "clear") failures.push(`${mode} experience status expected clear, got ${item.experienceStatus}`);
 }
+if (!summary.expedition.completed) failures.push("expedition route did not complete");
+if (summary.expedition.failed) failures.push("expedition route collapsed completely");
+if (summary.expedition.integrity < 1) failures.push("expedition route should retain at least one integrity");
+if (summary.expedition.collapses < 1) failures.push("expedition route should exercise semantic collapse pressure");
+if (summary.expedition.bossCounters !== 3) failures.push("expedition boss counters expected 3");
+if (summary.expedition.reward <= 0 || summary.expedition.profileWins !== 1) failures.push("expedition completion did not advance profile");
 
 if (failures.length) {
   console.error(failures.map((item) => `[FAIL] ${item}`).join("\n"));

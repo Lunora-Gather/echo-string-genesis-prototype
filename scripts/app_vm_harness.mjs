@@ -107,7 +107,7 @@ const REQUIRED_IDS = [
 
 export function createDomHarness() {
   const elements = Object.fromEntries(REQUIRED_IDS.map((id) => [id, new FakeElement(id)]));
-  const modeButtons = ["guided", "low", "debug"].map((mode) => {
+  const modeButtons = ["guided", "low", "expedition", "debug"].map((mode) => {
     const element = new FakeElement(`mode-${mode}`, "button");
     element.dataset.mode = mode;
     return element;
@@ -164,6 +164,11 @@ export function loadAppContext(appPath = "prototype/app.js") {
   context.location = { search: "" };
   context.addEventListener = () => {};
 
+  const prototypeDir = appPath.replace(/app\.js$/, "");
+  for (const coreFile of ["core/runtime-config.js", "core/progression.js"]) {
+    const corePath = `${prototypeDir}${coreFile}`;
+    vm.runInNewContext(fs.readFileSync(corePath, "utf8"), context, { filename: corePath });
+  }
   vm.runInNewContext(fs.readFileSync(appPath, "utf8"), context, { filename: appPath });
   const regressionPath = appPath.replace(/app\.js$/, "regression.js");
   if (fs.existsSync(regressionPath)) {
@@ -227,6 +232,21 @@ export function summarizeSuite(suite) {
       feedbackEvents: suite.reports.low.metrics.feedbackEvents.length,
       failureEvents: suite.reports.low.metrics.failureEvents.length,
       experienceStatus: suite.reports.low.experience.status
+    },
+    expedition: {
+      completed: suite.reports.expedition.completed,
+      mode: suite.reports.expedition.testMode,
+      score: suite.reports.expedition.audit.score,
+      grade: suite.reports.expedition.audit.grade,
+      assertions: suite.reports.expedition.metrics.routeAssertions.length,
+      mistakes: suite.reports.expedition.summary.totalMistakes,
+      bossCounters: suite.reports.expedition.metrics.bossPhaseCounters.length,
+      reactions: suite.reports.expedition.metrics.reactions,
+      collapses: suite.reports.expedition.run.collapses,
+      integrity: suite.reports.expedition.run.integrity,
+      failed: suite.reports.expedition.run.failed,
+      reward: suite.reports.expedition.run.lastReward,
+      profileWins: suite.reports.expedition.profile.expeditionWins
     }
   };
 }

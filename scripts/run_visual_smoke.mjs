@@ -6,16 +6,24 @@ import { spawn } from "node:child_process";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const APP_URL = process.argv[2] || "http://127.0.0.1:4174/index.html";
-const OUTPUT_PATH = process.argv[3] || "production/latest_1_0_0_visual_smoke_report.json";
+const OUTPUT_PATH = process.argv[3] || "production/releases/1.1.0/visual_smoke_report.json";
 
 const scenarios = [
+  {
+    name: "desktop-expedition",
+    mode: "expedition",
+    width: 1440,
+    height: 960,
+    mobile: false,
+    screenshot: "production/releases/1.1.0/screenshots/desktop-expedition.png"
+  },
   {
     name: "desktop-guided",
     mode: "guided",
     width: 1280,
     height: 900,
     mobile: false,
-    screenshot: "prototype/prototype_1_0_0_full.png"
+    screenshot: "production/releases/1.1.0/screenshots/desktop-guided.png"
   },
   {
     name: "mobile-low",
@@ -23,7 +31,7 @@ const scenarios = [
     width: 390,
     height: 844,
     mobile: true,
-    screenshot: "prototype/prototype_1_0_0_mobile.png"
+    screenshot: "production/releases/1.1.0/screenshots/mobile-low.png"
   }
 ];
 
@@ -264,7 +272,7 @@ async function inspectPage(session, scenario) {
       ),
       resultPulseVisible: Boolean(resultRect && resultRect.top < window.innerHeight && resultRect.bottom > 0),
       hasTitle: bodyText.includes("断句庭院灰盒原型"),
-      hasBuild: bodyText.includes("1.0.0 Public Playtest"),
+      hasBuild: bodyText.includes("1.1.0 Chronicle Expedition"),
       lowUnscannedLeaks: lowLeaks
     };
   })()`);
@@ -288,7 +296,7 @@ async function captureScenario(browser, scenario) {
     fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, "base64"));
 
     const failures = [];
-    if (inspection.uxBuild !== "1.0.0") failures.push("build label is not 1.0.0");
+    if (inspection.uxBuild !== "1.1.0") failures.push("build label is not 1.1.0");
     if (inspection.mode !== scenario.mode) failures.push(`mode expected ${scenario.mode}, got ${inspection.mode}`);
     if (inspection.zone !== "Z1") failures.push(`initial zone expected Z1, got ${inspection.zone}`);
     if (inspection.objectTokens < 2) failures.push("fewer than two object cards rendered");
@@ -370,7 +378,7 @@ try {
   }
   const failures = results.flatMap((result) => result.failures.map((failure) => `${result.name}: ${failure}`));
   const output = {
-    build: "1.0.0",
+    build: "1.1.0",
     browser: path.basename(browser.browserPath),
     url: APP_URL,
     passed: failures.length === 0,

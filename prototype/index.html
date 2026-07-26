@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="《语弦生态：创世纪》断句庭院可玩灰盒原型，打开网页即可试玩扫描、剥离、注入和组合反应闭环。" />
+    <meta name="description" content="《语弦生态：创世纪》1.1.0 长期试玩版：扫描、剥离、注入语义，挑战递进远征并积累永久铭文。" />
     <meta name="theme-color" content="#f3f0ea" />
     <meta property="og:title" content="断句庭院灰盒原型" />
-    <meta property="og:description" content="Echo-String: Genesis 的网页可玩MVP原型。" />
+    <meta property="og:description" content="Echo-String: Genesis 1.1.0 Chronicle Expedition 长期试玩版。" />
     <meta property="og:type" content="website" />
     <title>语弦生态：断句庭院灰盒原型</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=1.0.7" />
+    <link rel="stylesheet" href="./styles.css?v=1.1.0" />
   </head>
   <body class="theme-light">
     <!-- Screen Effects Overlay -->
@@ -82,9 +82,9 @@
     <main class="app-shell">
       <header class="topbar">
         <div class="title-block">
-          <p class="eyebrow">Echo-String: Genesis / MVP Prototype</p>
+          <p class="eyebrow">Echo-String: Genesis / Chronicle Expedition</p>
           <h1>断句庭院灰盒原型</h1>
-          <span class="build-pill">1.0.0 Public Playtest</span>
+          <span class="build-pill">1.1.0 Chronicle Expedition</span>
         </div>
         <div class="topbar-controls">
           <div class="topbar-controls-row">
@@ -95,6 +95,7 @@
             <div class="mode-switch" aria-label="玩法模式">
               <button class="mode-button active" type="button" data-mode="guided" data-testid="mode-guided" aria-pressed="true">引导</button>
               <button class="mode-button" type="button" data-mode="low" data-testid="mode-low" aria-pressed="false">探索</button>
+              <button class="mode-button expedition-mode-button" type="button" data-mode="expedition" data-testid="mode-expedition" aria-pressed="false">远征</button>
               <button class="mode-button" type="button" data-mode="debug" data-testid="mode-debug" aria-pressed="false">沙盒</button>
             </div>
             <div class="language-switch" aria-label="简繁切换">
@@ -141,6 +142,8 @@
           <button id="restartSessionBtn" class="quiet-button" type="button">重开本轮</button>
         </div>
       </section>
+
+      <section id="chroniclePanel" class="chronicle-panel" aria-label="长期纪行与铭文成长"></section>
 
       <section class="workspace">
         <aside class="panel zone-panel">
@@ -222,7 +225,9 @@
     </main>
 
     <script id="reportData" type="application/json"></script>
-    <script src="./app.js?v=1.0.4" defer></script>
-    <script src="./regression.js?v=1.0.1" defer></script>
+    <script src="./core/runtime-config.js?v=1.1.0" defer></script>
+    <script src="./core/progression.js?v=1.1.0" defer></script>
+    <script src="./app.js?v=1.1.0" defer></script>
+    <script src="./regression.js?v=1.1.0" defer></script>
   </body>
 </html>

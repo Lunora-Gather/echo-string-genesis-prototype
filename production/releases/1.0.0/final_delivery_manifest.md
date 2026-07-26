@@ -29,8 +29,8 @@
 | 显隐记录 | [production/latest_1_0_0_visibility_report.json](./latest_1_0_0_visibility_report.json) |
 | DOM 点击 | [production/latest_1_0_0_dom_click_report.json](./latest_1_0_0_dom_click_report.json) |
 | 视觉 Smoke | [production/latest_1_0_0_visual_smoke_report.json](./latest_1_0_0_visual_smoke_report.json) |
-| 桌面截图 | [prototype/prototype_1_0_0_full.png](../prototype/prototype_1_0_0_full.png) |
-| 手机截图 | [prototype/prototype_1_0_0_mobile.png](../prototype/prototype_1_0_0_mobile.png) |
+| 桌面截图 | [screenshots/prototype_1_0_0_full.png](./screenshots/prototype_1_0_0_full.png) |
+| 手机截图 | [screenshots/prototype_1_0_0_mobile.png](./screenshots/prototype_1_0_0_mobile.png) |
 
 ## 当前体验状态
 

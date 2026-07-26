@@ -1,5 +1,5 @@
 param(
-  [string]$ReportGlob = "production\latest*_report.json",
+  [string]$ReportGlob = "production\releases",
   [string]$OutputPath = "production\report_comparison.md"
 )
 
@@ -31,12 +31,17 @@ function Add-Line {
 
 $resolvedOutput = Resolve-ProjectPath $OutputPath
 $globPath = Resolve-ProjectPath $ReportGlob
-$globDir = Split-Path -Parent $globPath
-$globName = Split-Path -Leaf $globPath
-$files = Get-ChildItem -Path $globDir -Filter $globName -File |
-  Where-Object { $_.Name -notmatch "_dom_click_report\.json$" } |
-  Where-Object { $_.Name -notmatch "_visual_smoke_report\.json$" } |
-  Sort-Object Name
+if (Test-Path -LiteralPath $globPath -PathType Container) {
+  $files = Get-ChildItem -LiteralPath $globPath -Filter "report.json" -File -Recurse |
+    Sort-Object FullName
+} else {
+  $globDir = Split-Path -Parent $globPath
+  $globName = Split-Path -Leaf $globPath
+  $files = Get-ChildItem -Path $globDir -Filter $globName -File |
+    Where-Object { $_.Name -notmatch "_dom_click_report\.json$" } |
+    Where-Object { $_.Name -notmatch "_visual_smoke_report\.json$" } |
+    Sort-Object Name
+}
 
 if (-not $files) {
   Write-Error "No report files matched: $ReportGlob"

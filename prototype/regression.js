@@ -121,15 +121,21 @@ function runLowGuidanceRegression() {
   return runRouteRegression("low");
 }
 
+function runExpeditionRegression() {
+  return runRouteRegression("expedition");
+}
+
 function runRegressionSuite() {
   const guided = runGuidedRegression();
   const low = runLowGuidanceRegression();
+  const expedition = runExpeditionRegression();
   return {
     build: runtimeBuildLabel,
-    passed: Boolean(guided.completed && low.completed),
+    passed: Boolean(guided.completed && low.completed && expedition.completed && !expedition.run.failed),
     reports: {
       guided,
-      low
+      low,
+      expedition
     },
     comparison: {
       guidedMistakes: guided.summary.totalMistakes,
@@ -320,6 +326,7 @@ function maybeAutorunRegression() {
 Object.assign(window.__echoString, {
   runGuidedRegression,
   runLowGuidanceRegression,
+  runExpeditionRegression,
   runRegressionSuite,
   runFailureAudit,
   runPlayerPathAudit

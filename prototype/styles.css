@@ -291,7 +291,7 @@ h3 {
 
 .mode-switch {
   display: inline-grid;
-  grid-template-columns: repeat(3, minmax(58px, 1fr));
+  grid-template-columns: repeat(4, minmax(52px, 1fr));
   gap: 3px;
   min-height: 36px;
   padding: 3px;
@@ -3168,6 +3168,264 @@ body.theme-light .prologue-line {
   color: #4f4b42;
 }
 
+.chronicle-panel {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid rgba(174, 219, 195, 0.14);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(115deg, rgba(41, 211, 160, 0.06), transparent 46%), var(--bg-panel);
+  box-shadow: 0 18px 42px var(--shadow);
+}
+
+.chronicle-panel.expedition-active {
+  border-color: rgba(226, 177, 93, 0.34);
+  background: linear-gradient(115deg, rgba(226, 177, 93, 0.09), transparent 48%), var(--bg-panel);
+}
+
+.chronicle-panel.run-failed {
+  border-color: rgba(241, 111, 111, 0.45);
+}
+
+.chronicle-summary {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.3fr) minmax(360px, 2fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.chronicle-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chronicle-title strong {
+  color: var(--ink-strong);
+  font-family: "Outfit", "Noto Sans SC", sans-serif;
+  font-size: 19px;
+}
+
+.chronicle-title small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.chronicle-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(76px, 1fr));
+  gap: 6px;
+}
+
+.chronicle-stats > span {
+  display: grid;
+  min-height: 48px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg-quiet);
+}
+
+.chronicle-stats small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.chronicle-stats strong {
+  color: var(--ink-strong);
+  font-size: 16px;
+}
+
+.chronicle-primary {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(226, 177, 93, 0.46);
+  border-radius: var(--radius-md);
+  color: #17120f;
+  background: var(--amber);
+  font-weight: 850;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chronicle-toggle {
+  display: none;
+}
+
+.expedition-pressure {
+  display: grid;
+  grid-template-columns: 170px minmax(140px, 1fr) minmax(240px, auto);
+  gap: 10px;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.expedition-pressure > div:first-child {
+  display: flex;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.expedition-pressure > div:first-child strong {
+  color: var(--ink-strong);
+}
+
+.expedition-pressure > i {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.expedition-pressure > i b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--good);
+  transition: width 220ms ease, background 220ms ease;
+}
+
+.expedition-pressure.warning > i b {
+  background: var(--warn);
+}
+
+.expedition-pressure.danger > i b {
+  background: var(--bad);
+}
+
+.modifier-list {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.modifier-chip {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  padding: 3px 7px;
+  border: 1px solid rgba(226, 177, 93, 0.24);
+  border-radius: 999px;
+  color: var(--amber);
+  background: var(--amber-soft);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.modifier-chip.calm {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--bg-quiet);
+}
+
+.inscription-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.inscription-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg-quiet);
+}
+
+.inscription-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 15px;
+}
+
+.inscription-card > div {
+  display: grid;
+  min-width: 0;
+}
+
+.inscription-card strong {
+  display: flex;
+  gap: 7px;
+  color: var(--ink-strong);
+  font-size: 12px;
+}
+
+.inscription-card strong em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.inscription-card small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inscription-card button {
+  min-width: 52px;
+  min-height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink-strong);
+  background: var(--bg-soft);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.inscription-card button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.inscription-card.maxed {
+  border-color: rgba(41, 211, 160, 0.25);
+}
+
+body.theme-light .chronicle-panel {
+  border-color: rgba(71, 76, 63, 0.12);
+  background: linear-gradient(115deg, rgba(35, 108, 88, 0.055), transparent 48%), rgba(248, 244, 233, 0.82);
+  box-shadow: 0 18px 42px rgba(74, 57, 36, 0.08);
+}
+
+body.theme-light .chronicle-panel.expedition-active {
+  border-color: rgba(166, 106, 31, 0.3);
+}
+
+body.theme-light .expedition-pressure {
+  background: rgba(90, 72, 48, 0.045);
+}
+
+body.theme-light .expedition-pressure > i {
+  background: rgba(62, 70, 58, 0.1);
+}
+
+body.theme-light .chronicle-primary {
+  color: #fffdf7;
+  background: #8f6529;
+}
+
 @media (max-width: 1240px) {
   .app-shell {
     padding: 16px;
@@ -3379,6 +3637,120 @@ body.theme-light .prologue-line {
 
   .prologue-glitch-title {
     font-size: 44px;
+  }
+}
+
+@media (max-width: 1240px) {
+  .chronicle-summary {
+    grid-template-columns: minmax(220px, 1fr) minmax(360px, 2fr);
+  }
+
+  .chronicle-action {
+    grid-column: 1 / -1;
+  }
+
+  .chronicle-primary {
+    width: 100%;
+  }
+}
+
+@media (max-width: 860px) {
+  .chronicle-panel {
+    padding: 10px;
+  }
+
+  .chronicle-summary,
+  .expedition-pressure {
+    grid-template-columns: 1fr;
+  }
+
+  .chronicle-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .modifier-list {
+    justify-content: flex-start;
+  }
+
+  .inscription-grid {
+    display: none;
+    grid-template-columns: 1fr;
+  }
+
+  .chronicle-panel.mobile-expanded .inscription-grid {
+    display: grid;
+  }
+
+  .chronicle-action {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 7px;
+  }
+
+  .chronicle-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 86px;
+    min-height: 40px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    color: var(--ink-strong);
+    background: var(--bg-quiet);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .chronicle-title small {
+    display: none;
+  }
+
+  .chronicle-panel.chronicle-idle {
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .chronicle-panel.chronicle-idle .chronicle-title,
+  .chronicle-panel.chronicle-idle .chronicle-stats,
+  .chronicle-panel.chronicle-idle .expedition-pressure,
+  .chronicle-panel.chronicle-idle .inscription-grid,
+  .chronicle-panel.chronicle-idle .chronicle-toggle {
+    display: none;
+  }
+
+  .chronicle-panel.chronicle-idle .chronicle-summary {
+    gap: 7px;
+  }
+
+  .chronicle-panel.chronicle-idle .chronicle-action {
+    grid-template-columns: 1fr;
+  }
+
+  .chronicle-panel.chronicle-idle .chronicle-primary {
+    min-height: 36px;
+  }
+
+  .inscription-card small {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 520px) {
+  .chronicle-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .chronicle-stats > span {
+    min-height: 44px;
+    padding: 6px 5px;
+  }
+
+  .chronicle-stats small {
+    font-size: 8px;
+  }
+
+  .chronicle-stats strong {
+    font-size: 13px;
   }
 }
 

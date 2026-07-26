@@ -2,6 +2,8 @@ import fs from "node:fs";
 
 const html = fs.readFileSync("prototype/index.html", "utf8");
 const app = fs.readFileSync("prototype/app.js", "utf8");
+const runtimeConfig = fs.readFileSync("prototype/core/runtime-config.js", "utf8");
+const progression = fs.readFileSync("prototype/core/progression.js", "utf8");
 const failures = [];
 
 function fail(message) {
@@ -18,7 +20,7 @@ for (const id of boundIds) {
   if (!ids.has(id)) fail(`app binds missing html id: ${id}`);
 }
 
-for (const mode of ["guided", "low", "debug"]) {
+for (const mode of ["guided", "low", "expedition", "debug"]) {
   if (!html.includes(`data-mode="${mode}"`)) fail(`missing mode button: ${mode}`);
 }
 
@@ -28,12 +30,15 @@ for (const language of ["zh-Hans", "zh-Hant"]) {
 }
 if (html.includes('data-language="en"')) fail("English language mode should not be exposed");
 
-if (!html.includes("app.js?v=1.0.4")) fail("index.html script cache key is not 1.0.4");
-if (!html.includes("regression.js?v=1.0.1")) fail("index.html regression cache key is not 1.0.1");
-if (!html.includes("1.0.0 Public Playtest")) fail("index.html build pill is not 1.0.0");
+if (!html.includes("core/runtime-config.js?v=1.1.0")) fail("runtime config module is missing");
+if (!html.includes("core/progression.js?v=1.1.0")) fail("progression module is missing");
+if (!html.includes("app.js?v=1.1.0")) fail("index.html script cache key is not 1.1.0");
+if (!html.includes("regression.js?v=1.1.0")) fail("index.html regression cache key is not 1.1.0");
+if (!html.includes("1.1.0 Chronicle Expedition")) fail("index.html build pill is not 1.1.0");
 if (!html.includes('<body class="theme-light">')) fail("first visit should render in light theme");
-if (!app.includes('const THEME_PREFERENCE_KEY = "echo_string_theme_preference_v1"')) fail("theme preference key missing");
+if (!runtimeConfig.includes('themePreferenceKey: "echo_string_theme_preference_v1"')) fail("theme preference key missing");
 if (!app.includes("localStorage.setItem(THEME_PREFERENCE_KEY, state.theme)")) fail("manual theme preference is not persisted");
+if (!progression.includes("purchaseUpgrade")) fail("long-term upgrade system missing");
 if (!ids.has("decisionStrip")) fail("decision strip node missing");
 if (!ids.has("resultPulse")) fail("result pulse node missing");
 if (!ids.has("checkpointBtn")) fail("checkpoint button missing");
@@ -47,5 +52,5 @@ console.log(JSON.stringify({
   status: "passed",
   ids: ids.size,
   boundIds: boundIds.length,
-  modes: 3
+  modes: 4
 }, null, 2));

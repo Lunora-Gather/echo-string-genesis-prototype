@@ -400,7 +400,11 @@ async function route(session, mode) {
       feedbackEvents: report.metrics.feedbackEvents.length,
       failureEvents: report.metrics.failureEvents.length,
       bossCounters: report.metrics.bossPhaseCounters.length,
-      experienceStatus: report.experience.status
+      experienceStatus: report.experience.status,
+      collapses: report.run?.collapses || 0,
+      integrity: report.run?.integrity ?? 3,
+      runFailed: Boolean(report.run?.failed),
+      reward: report.run?.lastReward || 0
     };
   })()`);
 }
@@ -419,18 +423,22 @@ const browser = await launchBrowser();
 try {
   const reports = {
     guided: await runMode(browser.port, "guided"),
-    low: await runMode(browser.port, "low")
+    low: await runMode(browser.port, "low"),
+    expedition: await runMode(browser.port, "expedition")
   };
   const failures = [];
   for (const [mode, report] of Object.entries(reports)) {
     if (!report.completed || report.currentZone !== "Z7") failures.push(`${mode} did not complete`);
-    if (report.mistakes !== 0) failures.push(`${mode} mistakes expected 0, got ${report.mistakes}`);
-    if (report.failureEvents !== 0) failures.push(`${mode} failure events expected 0, got ${report.failureEvents}`);
+    if (mode !== "expedition" && report.mistakes !== 0) failures.push(`${mode} mistakes expected 0, got ${report.mistakes}`);
+    if (mode !== "expedition" && report.failureEvents !== 0) failures.push(`${mode} failure events expected 0, got ${report.failureEvents}`);
     if (report.bossCounters !== 3) failures.push(`${mode} boss counters expected 3, got ${report.bossCounters}`);
     if (report.reactions !== 4) failures.push(`${mode} reactions expected 4, got ${report.reactions}`);
+    if (mode === "expedition" && (report.runFailed || report.integrity < 1 || report.collapses < 1 || report.reward < 1)) {
+      failures.push("expedition long-term loop did not complete with pressure and reward");
+    }
   }
   const output = {
-    build: "1.0.0",
+    build: "1.1.0",
     browser: path.basename(browser.browserPath),
     url: APP_URL,
     passed: failures.length === 0,

@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadAppContext, summarizeSuite } from "./app_vm_harness.mjs";
 
-const outputPath = process.argv[2] || "production/latest_1_0_0_report.json";
-const visibilityPath = process.argv[3] || "production/latest_1_0_0_visibility_report.json";
+const outputPath = process.argv[2] || "production/releases/1.1.0/report.json";
+const visibilityPath = process.argv[3] || "production/releases/1.1.0/visibility_report.json";
 const root = process.cwd();
 
 function ensureParent(filePath) {
@@ -44,16 +44,17 @@ const suite = context.window.__echoString.runRegressionSuite();
 const summary = summarizeSuite(suite);
 const failureAudit = context.window.__echoString.runFailureAudit();
 const playerPathAudit = context.window.__echoString.runPlayerPathAudit();
-const domClickReportPath = path.join(root, "production/latest_1_0_0_dom_click_report.json");
+const domClickReportPath = path.join(root, "production/releases/1.1.0/dom_click_report.json");
 const domClickRegression = fs.existsSync(domClickReportPath)
   ? JSON.parse(fs.readFileSync(domClickReportPath, "utf8"))
   : null;
-const visualSmokeReportPath = path.join(root, "production/latest_1_0_0_visual_smoke_report.json");
+const visualSmokeReportPath = path.join(root, "production/releases/1.1.0/visual_smoke_report.json");
 const visualSmoke = fs.existsSync(visualSmokeReportPath)
   ? JSON.parse(fs.readFileSync(visualSmokeReportPath, "utf8"))
   : null;
 const guided = suite.reports.guided;
 const low = suite.reports.low;
+const expedition = suite.reports.expedition;
 const generatedAt = new Date().toISOString();
 
 const report = {
@@ -61,7 +62,7 @@ const report = {
   prototype: guided.prototype,
   uxBuild: suite.build,
   uxBuildName: guided.uxBuildName,
-  source: "Node VM regression suite with guided and low-guidance routes",
+  source: "Node VM regression suite with guided, exploration, and expedition routes",
   generatedAt,
   passed: suite.passed,
   rollout: guided.rollout,
@@ -74,7 +75,8 @@ const report = {
     "JSON解析与标签引用",
     "app/data一致性",
     "UI DOM合约",
-    "双模式回归套件",
+    "三路线回归套件",
+    "长期成长与远征压力回归",
     "失败审计",
     "HTTP健康检查",
     "玩家反馈事件与体验审计",
@@ -85,7 +87,12 @@ const report = {
   ],
   reports: {
     guided: compactReport(guided),
-    low: compactReport(low)
+    low: compactReport(low),
+    expedition: {
+      ...compactReport(expedition),
+      run: expedition.run,
+      profile: expedition.profile
+    }
   },
   suiteSummary: summary
 };
@@ -103,9 +110,10 @@ const visibility = {
     { surface: "playtestObserverPack", status: "covered", note: "报告导出包含匿名试玩规则、理解追问、自动风险信号和观察者Markdown。" },
     { surface: "failureContext", status: "covered", note: "失败审计返回对象、词缀、原墨和词库上下文。" },
     { surface: "visiblePlayerPath", status: playerPathAudit.passed ? "covered" : "failed", note: "二次取空词、Z5词源误取和Boss核心裸露均被审计。" },
-    { surface: "domClickRegression", status: domClickRegression?.passed ? "covered" : "missing", note: "通过真实浏览器DOM点击完成引导和低引导路线。" },
+    { surface: "domClickRegression", status: domClickRegression?.passed ? "covered" : "missing", note: "通过真实浏览器DOM点击完成引导、探索和远征路线。" },
     { surface: "visualSmoke", status: visualSmoke?.passed ? "covered" : "missing", note: "桌面引导和手机低引导首屏无横向溢出，关键反馈可见，且存在可操作的首步入口。" },
-    { surface: "vmRegression", status: suite.passed ? "covered" : "failed", note: "引导和低引导路线均完成到 Z7。" }
+    { surface: "chronicleProgression", status: expedition.completed && !expedition.run.failed ? "covered" : "failed", note: "远征经历威胁崩解后仍可完成，并结算回声残片与永久记录。" },
+    { surface: "vmRegression", status: suite.passed ? "covered" : "failed", note: "引导、探索和远征路线均完成到 Z7。" }
   ],
   metrics: {
     guidedFeedbackEvents: report.reports.guided.feedbackEvents,

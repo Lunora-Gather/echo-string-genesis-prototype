@@ -1,0 +1,96 @@
+{
+  "build": "1.1.0",
+  "browser": "chrome.exe",
+  "url": "http://127.0.0.1:4174/index.html",
+  "passed": true,
+  "scenarios": [
+    {
+      "name": "desktop-expedition",
+      "url": "http://127.0.0.1:4174/index.html?mode=expedition",
+      "viewport": {
+        "width": 1440,
+        "height": 960,
+        "mobile": false
+      },
+      "screenshot": "production/releases/1.1.0/screenshots/desktop-expedition.png",
+      "passed": true,
+      "inspection": {
+        "uxBuild": "1.1.0",
+        "mode": "expedition",
+        "zone": "Z1",
+        "objectTokens": 2,
+        "actionButtons": 6,
+        "overflowX": 0,
+        "firstActionVisible": true,
+        "firstActionEnabled": false,
+        "firstObjectVisible": true,
+        "firstObjectEnabled": true,
+        "firstUsableStepVisible": true,
+        "resultPulseVisible": true,
+        "hasTitle": true,
+        "hasBuild": true,
+        "lowUnscannedLeaks": false
+      },
+      "failures": []
+    },
+    {
+      "name": "desktop-guided",
+      "url": "http://127.0.0.1:4174/index.html?mode=guided",
+      "viewport": {
+        "width": 1280,
+        "height": 900,
+        "mobile": false
+      },
+      "screenshot": "production/releases/1.1.0/screenshots/desktop-guided.png",
+      "passed": true,
+      "inspection": {
+        "uxBuild": "1.1.0",
+        "mode": "guided",
+        "zone": "Z1",
+        "objectTokens": 2,
+        "actionButtons": 2,
+        "overflowX": 0,
+        "firstActionVisible": true,
+        "firstActionEnabled": true,
+        "firstObjectVisible": true,
+        "firstObjectEnabled": true,
+        "firstUsableStepVisible": true,
+        "resultPulseVisible": true,
+        "hasTitle": true,
+        "hasBuild": true,
+        "lowUnscannedLeaks": false
+      },
+      "failures": []
+    },
+    {
+      "name": "mobile-low",
+      "url": "http://127.0.0.1:4174/index.html?mode=low",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "mobile": true
+      },
+      "screenshot": "production/releases/1.1.0/screenshots/mobile-low.png",
+      "passed": true,
+      "inspection": {
+        "uxBuild": "1.1.0",
+        "mode": "low",
+        "zone": "Z1",
+        "objectTokens": 2,
+        "actionButtons": 6,
+        "overflowX": 0,
+        "firstActionVisible": true,
+        "firstActionEnabled": false,
+        "firstObjectVisible": true,
+        "firstObjectEnabled": true,
+        "firstUsableStepVisible": true,
+        "resultPulseVisible": true,
+        "hasTitle": true,
+        "hasBuild": true,
+        "lowUnscannedLeaks": false
+      },
+      "failures": []
+    }
+  ],
+  "failures": []
+}
