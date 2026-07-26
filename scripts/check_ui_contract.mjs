@@ -30,11 +30,12 @@ for (const language of ["zh-Hans", "zh-Hant"]) {
 }
 if (html.includes('data-language="en"')) fail("English language mode should not be exposed");
 
-if (!html.includes("core/runtime-config.js?v=1.1.0")) fail("runtime config module is missing");
-if (!html.includes("core/progression.js?v=1.1.0")) fail("progression module is missing");
-if (!html.includes("app.js?v=1.1.0")) fail("index.html script cache key is not 1.1.0");
-if (!html.includes("regression.js?v=1.1.0")) fail("index.html regression cache key is not 1.1.0");
-if (!html.includes("1.1.0 Chronicle Expedition")) fail("index.html build pill is not 1.1.0");
+if (!html.includes("core/runtime-config.js?v=1.1.1")) fail("runtime config module is missing");
+if (!html.includes("core/progression.js?v=1.1.1")) fail("progression module is missing");
+if (!html.includes("app.js?v=1.1.1")) fail("index.html script cache key is not 1.1.1");
+if (!html.includes("regression.js?v=1.1.1")) fail("index.html regression cache key is not 1.1.1");
+if (!html.includes("1.1.1 Chronicle Expedition")) fail("index.html build pill is not 1.1.1");
+if (app.includes('window.location.search.includes("mode=")')) fail("playable mode query must not trigger regression layout");
 if (!html.includes('<body class="theme-light">')) fail("first visit should render in light theme");
 if (!runtimeConfig.includes('themePreferenceKey: "echo_string_theme_preference_v1"')) fail("theme preference key missing");
 if (!app.includes("localStorage.setItem(THEME_PREFERENCE_KEY, state.theme)")) fail("manual theme preference is not persisted");

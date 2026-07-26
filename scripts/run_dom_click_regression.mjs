@@ -438,7 +438,7 @@ try {
     }
   }
   const output = {
-    build: "1.1.0",
+    build: "1.1.1",
     browser: path.basename(browser.browserPath),
     url: APP_URL,
     passed: failures.length === 0,

@@ -46,7 +46,7 @@ check("next expedition advances cycle", nextExpedition.cycle === 2);
 
 const failed = checks.filter((item) => !item.passed);
 console.log(JSON.stringify({
-  build: "1.1.0",
+  build: "1.1.1",
   passed: failed.length === 0,
   checks
 }, null, 2));

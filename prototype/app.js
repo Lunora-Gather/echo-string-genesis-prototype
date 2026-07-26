@@ -1,5 +1,5 @@
 const RUNTIME_CONFIG = globalThis.EchoRuntimeConfig || {
-  version: "1.1.0",
+  version: "1.1.1",
   name: "Chronicle Expedition",
   saveSchema: 2,
   saveKey: "echo_string_save_v1.1",
@@ -484,7 +484,8 @@ const BUILD_ROLLOUT = [
   { version: "UX20", focus: "生产文档收口" },
   { version: "UX21", focus: "真人试玩反馈硬化" },
   { version: "1.0.0", focus: "公开发布与圆润视觉系统" },
-  { version: "1.1.0", focus: "远征压力、永久铭文与长期纪行" }
+  { version: "1.1.0", focus: "远征压力、永久铭文与长期纪行" },
+  { version: "1.1.1", focus: "游戏主界面重构与真实模式布局修复" }
 ];
 
 const TAG_CAUSES = {
@@ -527,12 +528,12 @@ const ZONE_MASTERY = {
 };
 
 const LANGUAGES = {
-  "zh-Hans": { label: "简", htmlLang: "zh-CN", title: "语弦生态：断句庭院灰盒原型" },
-  "zh-Hant": { label: "繁", htmlLang: "zh-Hant", title: "語弦生態：斷句庭院灰盒原型" }
+  "zh-Hans": { label: "简", htmlLang: "zh-CN", title: "语弦生态：断句庭院" },
+  "zh-Hant": { label: "繁", htmlLang: "zh-Hant", title: "語弦生態：斷句庭院" }
 };
 
 const EN_EXACT = {
-  "断句庭院灰盒原型": "Duanju Courtyard Prototype",
+  "断句庭院": "Duanju Courtyard",
   "地图": "Map",
   "日志": "Log",
   "亮色": "Light",
@@ -686,7 +687,7 @@ const EN_EXACT = {
   "作为流淌着空白原墨的“异墨者 · 楷”，你将能够读取并修改物体的底层语义。": "As Kai, an Inkborn carrying blank primal ink, you can read and rewrite the semantics beneath all things.",
   "请穿过故障的“断句庭院”，剥离、注入和重写代码，完成原初修复考验。": "Cross the corrupted Duanju Courtyard. Extract, inject, and rewrite its rules to complete the restoration trial.",
   "点击下方按钮建立同步链路，重塑万物法则。": "Establish the sync link and begin reshaping the laws of the world.",
-  "《语弦生态：创世纪》叙事恢复接口 v1.1.0": "Echo-String: Genesis / Narrative Recovery Interface v1.1.0",
+  "《语弦生态：创世纪》叙事恢复接口 v1.1.1": "Echo-String: Genesis / Narrative Recovery Interface v1.1.1",
   "选择场景中的对象，然后扫描。": "Select an object in the scene, then scan it.",
   "选择场景对象后开始扫描。": "Select a scene object to begin scanning.",
   "选择封文大门或裂纹石像开始。": "Select the Sealed Gate or Cracked Statue to begin.",
@@ -810,7 +811,7 @@ const EN_TERMS = {
 };
 
 const TRADITIONAL_PHRASES = {
-  "断句庭院灰盒原型": "斷句庭院灰盒原型",
+  "断句庭院": "斷句庭院",
   "语弦生态": "語弦生態",
   "创世纪": "創世紀",
   "原初作者": "原初作者",
@@ -3010,7 +3011,7 @@ function renderChroniclePanel() {
   el.chroniclePanel.innerHTML = `
     <div class="chronicle-summary">
       <div class="chronicle-title">
-        <span class="label">长期纪行 · 1.1.0</span>
+        <span class="label">长期纪行 · ${BUILD_LABEL}</span>
         <strong>${isExpedition() ? `第 ${state.run.cycle} 轮远征` : "修正者档案"}</strong>
         <small>${runIsFailed() ? "本轮稳定度耗尽，永久成长已保留。" : "完成轮次、积累残片、升级铭文，再挑战更高噪声。"}</small>
       </div>
@@ -3878,8 +3879,7 @@ function initPrologue() {
   const isRegression = (
     window.__echoRuntimeIsTesting || 
     new URLSearchParams(window.location.search).has("regression") || 
-    document.body?.dataset?.domClickMode || 
-    window.location.search.includes("mode=")
+    document.body?.dataset?.domClickMode
   );
 
   if (isRegression) {
@@ -4030,8 +4030,7 @@ function initLayoutInteractive() {
   const isRegression = (
     window.__echoRuntimeIsTesting || 
     new URLSearchParams(window.location.search).has("regression") || 
-    document.body?.dataset?.domClickMode || 
-    window.location.search.includes("mode=")
+    document.body?.dataset?.domClickMode
   );
   if (isRegression) {
     document.body.classList.add("regression-mode");

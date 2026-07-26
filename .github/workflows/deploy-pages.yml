@@ -36,9 +36,9 @@ jobs:
           test -f prototype/styles.css
           test -f prototype/core/runtime-config.js
           test -f prototype/core/progression.js
-          grep -q "app.js?v=1.1.0" prototype/index.html
-          grep -q "regression.js?v=1.1.0" prototype/index.html
-          grep -q "1.1.0 Chronicle Expedition" prototype/index.html
+          grep -q "app.js?v=1.1.1" prototype/index.html
+          grep -q "regression.js?v=1.1.1" prototype/index.html
+          grep -q "1.1.1 Chronicle Expedition" prototype/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

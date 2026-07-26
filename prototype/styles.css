@@ -3764,3 +3764,734 @@ body.theme-light .chronicle-primary {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ==========================================================================
+   1.1.1 Interface Composition — compact playfield, clear visual hierarchy
+   ========================================================================== */
+
+:root {
+  --layout-gap: 10px;
+  --surface-highlight: rgba(255, 255, 255, 0.055);
+  --surface-shadow: 0 16px 42px rgba(0, 0, 0, 0.18);
+}
+
+body.theme-light {
+  --bg: #eae4d8;
+  --bg-elevated: rgba(253, 251, 245, 0.94);
+  --bg-panel: rgba(250, 248, 241, 0.9);
+  --bg-panel-solid: #fbf9f3;
+  --bg-soft: rgba(219, 215, 204, 0.62);
+  --bg-quiet: rgba(42, 55, 47, 0.038);
+  --ink: #343a35;
+  --ink-strong: #121a15;
+  --muted: #687169;
+  --muted-2: #929990;
+  --line: rgba(38, 55, 45, 0.12);
+  --line-strong: rgba(38, 55, 45, 0.24);
+  --accent: #246b57;
+  --accent-strong: #15513f;
+  --accent-soft: rgba(36, 107, 87, 0.09);
+  --amber: #9e6729;
+  --amber-soft: rgba(158, 103, 41, 0.095);
+  --surface-highlight: rgba(255, 255, 255, 0.78);
+  --surface-shadow: 0 16px 44px rgba(55, 48, 37, 0.075);
+  background:
+    radial-gradient(circle at 16% 4%, rgba(255, 255, 255, 0.88), transparent 31%),
+    linear-gradient(180deg, rgba(248, 246, 239, 0.93), rgba(232, 226, 214, 0.96)),
+    url("./light_parchment_bg.png") center / cover fixed;
+}
+
+.app-shell {
+  width: min(1760px, 100%);
+  padding: 18px 22px 20px;
+}
+
+.topbar {
+  grid-template-columns: minmax(280px, 0.62fr) minmax(650px, 1.6fr);
+  gap: 16px;
+  margin-bottom: var(--layout-gap);
+}
+
+.title-block {
+  min-height: 72px;
+  gap: 4px;
+}
+
+.title-block h1 {
+  font-size: clamp(29px, 2.55vw, 39px);
+  line-height: 1;
+}
+
+.eyebrow {
+  font-size: 10px;
+}
+
+.build-pill {
+  min-height: 21px;
+  padding: 1px 8px;
+  font-size: 10px;
+}
+
+.topbar-controls {
+  min-height: 72px;
+  padding: 8px;
+  border-radius: 16px;
+}
+
+.topbar-controls-row {
+  gap: 5px;
+}
+
+.theme-toggle-btn,
+.settings-toggle-btn {
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
+.mode-switch {
+  gap: 2px;
+  padding: 3px;
+}
+
+.mode-button {
+  min-height: 30px;
+  padding-inline: 10px;
+}
+
+.status-strip {
+  width: 320px;
+  min-width: 320px;
+  gap: 5px;
+}
+
+.status-card {
+  min-height: 48px;
+  padding: 7px 8px 10px;
+  border-radius: 10px;
+}
+
+.status-card span {
+  font-size: 9px;
+}
+
+.status-card strong {
+  margin-top: 2px;
+  font-size: 18px;
+}
+
+.session-panel {
+  min-height: 42px;
+  margin-bottom: var(--layout-gap);
+  padding: 5px 7px;
+  border-radius: 14px;
+}
+
+.session-chip.wide {
+  min-height: 32px;
+  padding: 5px 9px;
+}
+
+.session-actions {
+  gap: 5px;
+}
+
+.session-actions .quiet-button {
+  min-height: 30px;
+  padding-inline: 10px;
+}
+
+/* Chronicle becomes a compact command bar. Upgrades appear only on demand. */
+.chronicle-panel {
+  gap: 7px;
+  margin-bottom: var(--layout-gap);
+  padding: 9px 10px;
+  border-radius: 16px;
+  box-shadow: var(--surface-shadow);
+}
+
+.chronicle-summary {
+  grid-template-columns: minmax(190px, 0.85fr) minmax(360px, 1.6fr) auto;
+  gap: 10px;
+}
+
+.chronicle-title {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 8px;
+  align-items: baseline;
+}
+
+.chronicle-title .label {
+  grid-column: 1 / -1;
+  font-size: 9px;
+}
+
+.chronicle-title strong {
+  font-size: 16px;
+}
+
+.chronicle-title small {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chronicle-stats {
+  grid-template-columns: repeat(4, minmax(68px, 1fr));
+  gap: 5px;
+}
+
+.chronicle-stats > span {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  min-height: 36px;
+  padding: 5px 7px;
+  border-radius: 9px;
+}
+
+.chronicle-stats small {
+  font-size: 9px;
+}
+
+.chronicle-stats strong {
+  font-size: 14px;
+}
+
+.chronicle-action {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 5px;
+}
+
+.chronicle-primary,
+.chronicle-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 11px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+
+.chronicle-toggle {
+  border: 1px solid var(--line-strong);
+  color: var(--ink-strong);
+  background: var(--bg-quiet);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.expedition-pressure {
+  grid-template-columns: 160px minmax(120px, 1fr) minmax(190px, auto);
+  min-height: 29px;
+  padding: 5px 8px;
+  border-radius: 9px;
+}
+
+.inscription-grid {
+  display: none;
+}
+
+.chronicle-panel.mobile-expanded .inscription-grid {
+  display: grid;
+}
+
+.inscription-card {
+  min-height: 54px;
+}
+
+/* The main playfield sizes itself to its content instead of manufacturing voids. */
+.workspace {
+  grid-template-columns: 156px minmax(0, 1fr) 268px;
+  gap: var(--layout-gap);
+  align-items: stretch;
+}
+
+.panel,
+.stage-panel {
+  min-height: 0;
+  border-radius: 16px;
+  box-shadow: var(--surface-shadow);
+}
+
+.panel {
+  padding: 10px;
+}
+
+.panel-heading {
+  margin-bottom: 8px;
+  padding: 2px 1px 8px;
+}
+
+.zone-list {
+  gap: 5px;
+}
+
+.zone-item {
+  min-height: 46px;
+  padding: 7px 8px 7px 11px;
+  border-radius: 10px;
+}
+
+.zone-item strong {
+  font-size: 12px;
+}
+
+.zone-item span {
+  margin-top: 1px;
+  font-size: 10px;
+}
+
+.stage-panel {
+  min-height: 0;
+}
+
+.tactical-deck {
+  gap: 7px;
+  padding: 13px 16px 10px;
+}
+
+.stage-header {
+  grid-template-columns: minmax(190px, auto) minmax(230px, 1fr);
+  gap: 14px;
+  padding-bottom: 8px;
+}
+
+.stage-header h2 {
+  font-size: clamp(25px, 2.1vw, 32px);
+}
+
+.objective {
+  font-size: 12px;
+}
+
+.mastery-panel {
+  grid-template-columns: minmax(176px, 0.62fr) minmax(0, 1.38fr);
+  gap: 6px;
+}
+
+.mastery-challenge,
+.discovery-chip {
+  min-height: 45px;
+}
+
+.mastery-challenge {
+  padding: 5px 9px;
+}
+
+.discovery-chip {
+  padding: 5px 7px;
+}
+
+.discovery-chip small {
+  display: none;
+}
+
+.result-pulse {
+  min-height: 46px;
+  padding: 7px 10px;
+}
+
+.context-actions {
+  gap: 5px;
+  min-height: 40px;
+}
+
+.action-group {
+  min-height: 40px;
+  padding: 3px;
+}
+
+.action-button {
+  min-height: 32px;
+  padding-inline: 11px;
+  font-size: 12px;
+}
+
+.scene-map {
+  flex: 0 0 auto;
+  grid-template-columns: repeat(2, minmax(230px, 1fr));
+  gap: 10px;
+  min-height: 228px;
+  padding: 14px 16px 16px;
+  overflow: visible;
+}
+
+.object-token {
+  min-height: 168px;
+  padding: 13px 14px;
+  border-radius: 14px;
+}
+
+.object-token::before {
+  border-radius: 14px 0 0 14px;
+}
+
+.object-token:hover {
+  transform: translateY(-2px);
+}
+
+.object-token strong {
+  font-size: 18px;
+}
+
+.glyph {
+  right: 12px;
+  bottom: -12px;
+  font-size: 86px;
+}
+
+.inspector-panel {
+  gap: 8px;
+}
+
+#inspector {
+  min-height: 208px;
+  padding: 12px;
+}
+
+.inventory {
+  margin-top: auto;
+}
+
+.inventory-list {
+  min-height: 104px;
+  padding: 8px;
+}
+
+.empty-state {
+  min-height: 74px;
+}
+
+/* Secondary telemetry is a restrained footer, not a second application. */
+.bottom-panel {
+  grid-template-columns: 1.15fr 0.9fr 1.05fr;
+  gap: 8px;
+  height: 164px;
+  margin-top: var(--layout-gap);
+  padding: 9px 10px;
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: var(--surface-shadow);
+}
+
+.bottom-panel .label {
+  font-size: 9px;
+}
+
+.bottom-panel .panel-heading {
+  margin-bottom: 5px;
+  padding-bottom: 4px;
+  border: 0;
+}
+
+.bottom-panel .tool-row {
+  gap: 4px;
+}
+
+.bottom-panel .quiet-button {
+  min-height: 26px;
+  padding-inline: 8px;
+  font-size: 10px;
+}
+
+.event-log,
+.reflection-box,
+.metrics-box {
+  min-height: 116px;
+  max-height: 116px;
+  padding: 8px 9px;
+  border-radius: 10px;
+}
+
+.reflection-box {
+  font-size: 12px;
+}
+
+.event-line {
+  padding: 5px 0;
+}
+
+.metrics-grid {
+  grid-template-columns: repeat(4, minmax(54px, 1fr));
+  gap: 5px;
+}
+
+.metric {
+  padding: 5px 6px;
+  border-radius: 8px;
+}
+
+.metric span {
+  font-size: 9px;
+}
+
+.metric strong {
+  margin-top: 1px;
+  font-size: 11px;
+}
+
+/* Light surfaces need separation by value and edge, not uniform beige haze. */
+body.theme-light .topbar-controls,
+body.theme-light .session-panel,
+body.theme-light .chronicle-panel,
+body.theme-light .panel,
+body.theme-light .stage-panel,
+body.theme-light:not(.regression-mode) .bottom-panel {
+  border-color: rgba(37, 56, 45, 0.115);
+  background:
+    linear-gradient(145deg, var(--surface-highlight), transparent 48%),
+    rgba(250, 248, 241, 0.91);
+  box-shadow:
+    var(--surface-shadow),
+    inset 0 1px rgba(255, 255, 255, 0.86);
+}
+
+body.theme-light .stage-panel {
+  background:
+    linear-gradient(180deg, rgba(36, 107, 87, 0.035), transparent 32%),
+    #f7f4ec;
+}
+
+body.theme-light .tactical-deck {
+  background:
+    linear-gradient(125deg, rgba(255, 255, 255, 0.76), transparent 52%),
+    #f0ece2;
+}
+
+body.theme-light .scene-map {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(36, 107, 87, 0.055), transparent 42%),
+    linear-gradient(rgba(43, 66, 53, 0.042) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(43, 66, 53, 0.038) 1px, transparent 1px),
+    #f4f1e9;
+  background-size: auto, 56px 56px, 56px 56px, auto;
+}
+
+body.theme-light .object-token {
+  border-color: rgba(37, 56, 45, 0.16);
+  background:
+    radial-gradient(circle at 100% 100%, rgba(36, 107, 87, 0.075), transparent 46%),
+    linear-gradient(145deg, #fffefa, #eeeae0 78%);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.94),
+    0 10px 24px rgba(50, 43, 33, 0.07);
+}
+
+body.theme-light .object-token.recommended {
+  background:
+    radial-gradient(circle at 100% 100%, rgba(158, 103, 41, 0.1), transparent 46%),
+    linear-gradient(145deg, #fffefa, #f0eadf 78%);
+}
+
+body.theme-light #inspector,
+body.theme-light .inventory-list,
+body.theme-light .event-log,
+body.theme-light .reflection-box,
+body.theme-light .metrics-box {
+  border-color: rgba(37, 56, 45, 0.11);
+  background: rgba(255, 254, 250, 0.68);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.85);
+}
+
+body.theme-light .zone-item {
+  color: #3a433d;
+  background: rgba(255, 254, 250, 0.56);
+}
+
+body.theme-light .zone-item.active {
+  border-color: rgba(36, 107, 87, 0.28);
+  background:
+    linear-gradient(90deg, rgba(36, 107, 87, 0.1), transparent 80%),
+    #fbfaf5;
+  box-shadow: 0 8px 18px rgba(42, 53, 45, 0.07);
+}
+
+@media (max-width: 1320px) {
+  .app-shell {
+    padding: 14px;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace {
+    grid-template-columns: 142px minmax(0, 1fr) 248px;
+  }
+
+  .chronicle-summary {
+    grid-template-columns: minmax(180px, 0.75fr) minmax(340px, 1.6fr) auto;
+  }
+}
+
+@media (max-width: 1080px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zone-panel,
+  .inspector-panel {
+    display: none;
+  }
+
+  .close-btn {
+    display: inline-flex;
+  }
+
+  .zone-panel.open,
+  .inspector-panel.open {
+    position: fixed;
+    z-index: 6000;
+    inset: 12px;
+    display: flex;
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+  }
+
+  .zone-panel.open {
+    max-width: 340px;
+  }
+
+  .inspector-panel.open {
+    right: 12px;
+    left: auto;
+    width: min(380px, calc(100vw - 24px));
+  }
+
+  .chronicle-summary {
+    grid-template-columns: minmax(180px, 0.8fr) minmax(320px, 1.6fr);
+  }
+
+  .chronicle-action {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr auto;
+  }
+
+  .bottom-panel {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .metrics-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .app-shell {
+    padding: 9px;
+  }
+
+  .topbar {
+    gap: 8px;
+  }
+
+  .chronicle-summary,
+  .expedition-pressure {
+    grid-template-columns: 1fr;
+  }
+
+  .chronicle-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .chronicle-panel.mobile-expanded .inscription-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-panel {
+    min-height: 0;
+  }
+
+  .tactical-deck {
+    padding: 13px 12px 9px;
+  }
+
+  .scene-map {
+    min-height: 0;
+    padding: 11px;
+    overflow: visible;
+  }
+
+  .bottom-panel {
+    grid-template-columns: 1fr;
+    height: 142px;
+  }
+
+  .reflection-panel,
+  .metrics-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .title-block h1 {
+    font-size: 27px;
+  }
+
+  .topbar-controls {
+    padding: 7px;
+  }
+
+  .chronicle-panel {
+    padding: 8px;
+  }
+
+  .chronicle-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .chronicle-stats > span {
+    grid-template-columns: 1fr;
+    min-height: 42px;
+  }
+
+  .chronicle-action {
+    grid-template-columns: 1fr auto;
+  }
+
+  .scene-map {
+    grid-template-columns: 1fr;
+  }
+
+  .object-token {
+    min-height: 150px;
+  }
+
+  .bottom-panel {
+    height: 132px;
+  }
+
+  .event-log {
+    min-height: 94px;
+    max-height: 94px;
+  }
+}
+
+body:not(.regression-mode) .bottom-panel {
+  top: 84px;
+  bottom: auto;
+  grid-template-columns: 1fr;
+  width: min(410px, calc(100vw - 28px));
+  height: auto;
+  max-height: calc(100vh - 100px);
+  padding: 14px;
+  overflow: auto;
+  border-radius: 18px;
+  box-shadow: 0 28px 80px var(--shadow-strong);
+}
+
+body:not(.regression-mode) .event-log,
+body:not(.regression-mode) .reflection-box,
+body:not(.regression-mode) .metrics-box {
+  min-height: 104px;
+  max-height: 146px;
+}
+
+body.theme-light:not(.regression-mode) .bottom-panel {
+  border-color: rgba(37, 56, 45, 0.14);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.8), transparent 48%),
+    rgba(248, 246, 239, 0.98);
+}

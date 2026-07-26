@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const APP_URL = process.argv[2] || "http://127.0.0.1:4174/index.html";
-const OUTPUT_PATH = process.argv[3] || "production/releases/1.1.0/visual_smoke_report.json";
+const OUTPUT_PATH = process.argv[3] || "production/releases/1.1.1/visual_smoke_report.json";
 
 const scenarios = [
   {
@@ -15,7 +15,7 @@ const scenarios = [
     width: 1440,
     height: 960,
     mobile: false,
-    screenshot: "production/releases/1.1.0/screenshots/desktop-expedition.png"
+    screenshot: "production/releases/1.1.1/screenshots/desktop-expedition.png"
   },
   {
     name: "desktop-guided",
@@ -23,7 +23,7 @@ const scenarios = [
     width: 1280,
     height: 900,
     mobile: false,
-    screenshot: "production/releases/1.1.0/screenshots/desktop-guided.png"
+    screenshot: "production/releases/1.1.1/screenshots/desktop-guided.png"
   },
   {
     name: "mobile-low",
@@ -31,7 +31,7 @@ const scenarios = [
     width: 390,
     height: 844,
     mobile: true,
-    screenshot: "production/releases/1.1.0/screenshots/mobile-low.png"
+    screenshot: "production/releases/1.1.1/screenshots/mobile-low.png"
   }
 ];
 
@@ -201,6 +201,18 @@ async function navigate(session, url) {
   await waitForAppReady(session);
 }
 
+async function enterGame(session) {
+  const entered = await evalPage(session, `(() => {
+    const overlay = document.querySelector("#prologueOverlay");
+    if (!overlay || overlay.classList.contains("hidden")) return true;
+    const start = document.querySelector("#startPrologueBtn");
+    if (!start) return false;
+    start.click();
+    return overlay.classList.contains("hidden");
+  })()`);
+  if (!entered) throw new Error("Could not dismiss the prologue before visual capture.");
+}
+
 async function waitForReady(session) {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
@@ -259,6 +271,7 @@ async function inspectPage(session, scenario) {
       uxBuild: report.uxBuild,
       mode: report.testMode,
       zone: report.currentZone,
+      prologueHidden: Boolean(document.querySelector("#prologueOverlay")?.classList.contains("hidden")),
       objectTokens,
       actionButtons: document.querySelectorAll(".action-button").length,
       overflowX,
@@ -271,8 +284,8 @@ async function inspectPage(session, scenario) {
         (firstObjectRect && firstObjectRect.top < window.innerHeight && firstObjectRect.bottom > 0 && firstObject && !firstObject.disabled)
       ),
       resultPulseVisible: Boolean(resultRect && resultRect.top < window.innerHeight && resultRect.bottom > 0),
-      hasTitle: bodyText.includes("断句庭院灰盒原型"),
-      hasBuild: bodyText.includes("1.1.0 Chronicle Expedition"),
+      hasTitle: bodyText.includes("断句庭院"),
+      hasBuild: bodyText.includes("1.1.1 Chronicle Expedition"),
       lowUnscannedLeaks: lowLeaks
     };
   })()`);
@@ -284,6 +297,7 @@ async function captureScenario(browser, scenario) {
     await setViewport(session, scenario);
     const url = `${APP_URL}${APP_URL.includes("?") ? "&" : "?"}mode=${scenario.mode}`;
     await navigate(session, url);
+    await enterGame(session);
     await wait(1200);
     const inspection = await inspectPage(session, scenario);
     const screenshot = await session.call("Page.captureScreenshot", {
@@ -296,9 +310,10 @@ async function captureScenario(browser, scenario) {
     fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, "base64"));
 
     const failures = [];
-    if (inspection.uxBuild !== "1.1.0") failures.push("build label is not 1.1.0");
+    if (inspection.uxBuild !== "1.1.1") failures.push("build label is not 1.1.1");
     if (inspection.mode !== scenario.mode) failures.push(`mode expected ${scenario.mode}, got ${inspection.mode}`);
     if (inspection.zone !== "Z1") failures.push(`initial zone expected Z1, got ${inspection.zone}`);
+    if (!inspection.prologueHidden) failures.push("prologue still covers the game interface");
     if (inspection.objectTokens < 2) failures.push("fewer than two object cards rendered");
     if (inspection.actionButtons < 1) failures.push("no action buttons rendered");
     if (inspection.overflowX > 2) failures.push(`horizontal overflow ${inspection.overflowX}px`);
@@ -378,7 +393,7 @@ try {
   }
   const failures = results.flatMap((result) => result.failures.map((failure) => `${result.name}: ${failure}`));
   const output = {
-    build: "1.1.0",
+    build: "1.1.1",
     browser: path.basename(browser.browserPath),
     url: APP_URL,
     passed: failures.length === 0,

@@ -6,7 +6,7 @@ const audit = context.window.__echoString.runPlayerPathAudit();
 console.log(JSON.stringify(audit, null, 2));
 
 const failures = [];
-if (audit.build !== "1.1.0") failures.push(`expected 1.1.0 build, got ${audit.build}`);
+if (audit.build !== "1.1.1") failures.push(`expected 1.1.1 build, got ${audit.build}`);
 if (!audit.passed) failures.push("player path audit did not pass");
 
 const expectedChecks = [

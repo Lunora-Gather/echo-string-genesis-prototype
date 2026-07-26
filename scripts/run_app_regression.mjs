@@ -8,7 +8,7 @@ console.log(JSON.stringify(summary, null, 2));
 
 const failures = [];
 if (!summary.passed) failures.push("regression suite did not pass");
-if (summary.build !== "1.1.0") failures.push(`expected 1.1.0 build, got ${summary.build}`);
+if (summary.build !== "1.1.1") failures.push(`expected 1.1.1 build, got ${summary.build}`);
 for (const mode of ["guided", "low"]) {
   const item = summary[mode];
   if (!item.completed) failures.push(`${mode} route did not complete`);

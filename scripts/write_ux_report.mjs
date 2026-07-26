@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadAppContext, summarizeSuite } from "./app_vm_harness.mjs";
 
-const outputPath = process.argv[2] || "production/releases/1.1.0/report.json";
-const visibilityPath = process.argv[3] || "production/releases/1.1.0/visibility_report.json";
+const outputPath = process.argv[2] || "production/releases/1.1.1/report.json";
+const visibilityPath = process.argv[3] || "production/releases/1.1.1/visibility_report.json";
 const root = process.cwd();
 
 function ensureParent(filePath) {
@@ -44,11 +44,11 @@ const suite = context.window.__echoString.runRegressionSuite();
 const summary = summarizeSuite(suite);
 const failureAudit = context.window.__echoString.runFailureAudit();
 const playerPathAudit = context.window.__echoString.runPlayerPathAudit();
-const domClickReportPath = path.join(root, "production/releases/1.1.0/dom_click_report.json");
+const domClickReportPath = path.join(root, "production/releases/1.1.1/dom_click_report.json");
 const domClickRegression = fs.existsSync(domClickReportPath)
   ? JSON.parse(fs.readFileSync(domClickReportPath, "utf8"))
   : null;
-const visualSmokeReportPath = path.join(root, "production/releases/1.1.0/visual_smoke_report.json");
+const visualSmokeReportPath = path.join(root, "production/releases/1.1.1/visual_smoke_report.json");
 const visualSmoke = fs.existsSync(visualSmokeReportPath)
   ? JSON.parse(fs.readFileSync(visualSmokeReportPath, "utf8"))
   : null;

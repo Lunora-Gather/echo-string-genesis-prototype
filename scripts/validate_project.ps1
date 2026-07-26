@@ -116,10 +116,10 @@ if (-not $node) {
 
 $indexPath = Join-Path $root "prototype\index.html"
 $indexHtml = Get-Content -LiteralPath $indexPath -Raw
-if ($indexHtml -match "app\.js\?v=1\.1\.0") {
+if ($indexHtml -match "app\.js\?v=1\.1\.1") {
   Add-Pass "index.html references current app cache key"
 } else {
-  Add-Fail "index.html does not reference app.js?v=1.1.0"
+  Add-Fail "index.html does not reference app.js?v=1.1.1"
 }
 
 $appPath = Join-Path $root "prototype\app.js"
@@ -129,10 +129,10 @@ $runtimeConfigJs = Get-Content -LiteralPath $runtimeConfigPath -Raw
 $regressionPath = Join-Path $root "prototype\regression.js"
 $regressionJs = Get-Content -LiteralPath $regressionPath -Raw
 $runtimeJs = "$appJs`n$regressionJs"
-if ($runtimeConfigJs -match 'version: "1.1.0"') {
-  Add-Pass "runtime config build label is 1.1.0"
+if ($runtimeConfigJs -match 'version: "1.1.1"') {
+  Add-Pass "runtime config build label is 1.1.1"
 } else {
-  Add-Fail "runtime config build label is not 1.1.0"
+  Add-Fail "runtime config build label is not 1.1.1"
 }
 if ($runtimeJs -match "runGuidedRegression") {
   Add-Pass "browser regression hook is exposed"
@@ -197,14 +197,14 @@ if ($Port -gt 0) {
   if ($node) {
     Push-Location $root
     try {
-      & $node.Source ".\scripts\run_dom_click_regression.mjs" $url "production\releases\1.1.0\dom_click_report.json" | Out-Null
+      & $node.Source ".\scripts\run_dom_click_regression.mjs" $url "production\releases\1.1.1\dom_click_report.json" | Out-Null
       if ($LASTEXITCODE -eq 0) { Add-Pass "DOM click regression" } else { Add-Fail "DOM click regression failed" }
-      & $node.Source ".\scripts\run_visual_smoke.mjs" $url "production\releases\1.1.0\visual_smoke_report.json" | Out-Null
+      & $node.Source ".\scripts\run_visual_smoke.mjs" $url "production\releases\1.1.1\visual_smoke_report.json" | Out-Null
       if ($LASTEXITCODE -eq 0) { Add-Pass "visual smoke" } else { Add-Fail "visual smoke failed" }
-      & $node.Source ".\scripts\write_ux_report.mjs" "production\releases\1.1.0\report.json" "production\releases\1.1.0\visibility_report.json" | Out-Null
-      if ($LASTEXITCODE -eq 0) { Add-Pass "1.1.0 report refreshed" } else { Add-Fail "1.1.0 report refresh failed" }
-      powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\summarize_report.ps1" -ReportPath "production\releases\1.1.0\report.json" -OutputPath "production\releases\1.1.0\summary.md" | Out-Null
-      if ($LASTEXITCODE -eq 0) { Add-Pass "1.1.0 summary refreshed" } else { Add-Fail "1.1.0 summary refresh failed" }
+      & $node.Source ".\scripts\write_ux_report.mjs" "production\releases\1.1.1\report.json" "production\releases\1.1.1\visibility_report.json" | Out-Null
+      if ($LASTEXITCODE -eq 0) { Add-Pass "1.1.1 report refreshed" } else { Add-Fail "1.1.1 report refresh failed" }
+      powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\summarize_report.ps1" -ReportPath "production\releases\1.1.1\report.json" -OutputPath "production\releases\1.1.1\summary.md" | Out-Null
+      if ($LASTEXITCODE -eq 0) { Add-Pass "1.1.1 summary refreshed" } else { Add-Fail "1.1.1 summary refresh failed" }
       powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\aggregate_reports.ps1" -ReportGlob "production\releases" -OutputPath "production\report_comparison.md" | Out-Null
       if ($LASTEXITCODE -eq 0) { Add-Pass "report comparison refreshed" } else { Add-Fail "report comparison refresh failed" }
     } catch {

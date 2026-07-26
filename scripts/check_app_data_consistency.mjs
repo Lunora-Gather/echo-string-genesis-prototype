@@ -50,8 +50,8 @@ for (const required of ["Reaction.SteamBurst", "Reaction.FractureWindow", "React
   if (!reactionIds.has(required)) fail(`required reaction missing: ${required}`);
 }
 
-if (app.build !== "1.1.0") fail(`app build expected 1.1.0, got ${app.build}`);
-if (app.rollout.length !== 13) fail(`rollout expected 13 entries, got ${app.rollout.length}`);
+if (app.build !== "1.1.1") fail(`app build expected 1.1.1, got ${app.build}`);
+if (app.rollout.length !== 14) fail(`rollout expected 14 entries, got ${app.rollout.length}`);
 
 if (failures.length) {
   console.error(failures.map((item) => `[FAIL] ${item}`).join("\n"));

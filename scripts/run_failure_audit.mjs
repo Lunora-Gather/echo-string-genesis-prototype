@@ -15,7 +15,7 @@ const expectedCategories = [
 const failures = [];
 
 if (!audit.passed) failures.push("failure audit did not pass");
-if (audit.build !== "1.1.0") failures.push(`expected 1.1.0 build, got ${audit.build}`);
+if (audit.build !== "1.1.1") failures.push(`expected 1.1.1 build, got ${audit.build}`);
 for (const category of expectedCategories) {
   if (!audit.failureCounts[category]) failures.push(`missing failure category: ${category}`);
 }
