@@ -1,0 +1,26 @@
+name: Browser regression
+
+on: [pull_request, push]
+
+permissions:
+  contents: read
+
+jobs:
+  webkit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx --no-install playwright-core install --with-deps webkit
+      - name: Run interaction and visual regressions
+        run: |
+          (cd prototype && exec node server.mjs 4174) &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          curl -fsS --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4174/index.html -o /dev/null
+          node scripts/run_dom_click_regression.mjs
+          node scripts/run_visual_smoke.mjs

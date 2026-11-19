@@ -133,6 +133,11 @@ class CdpSession {
 }
 
 async function launchBrowser() {
+  if (!process.env.CHROME_PATH && !process.env.EDGE_PATH) {
+    const { webkit } = await import("playwright-core");
+    const engine = await webkit.launch();
+    return { engine, browserPath: "WebKit", cleanup: () => engine.close() };
+  }
   const browserPath = findBrowser();
   const port = await freePort();
   const profilePrefix = "echo-visual-";
@@ -204,7 +209,8 @@ async function setViewport(session, scenario) {
 }
 
 async function navigate(session, url) {
-  await session.call("Page.navigate", { url });
+  if (session.goto) await session.goto(url);
+  else await session.call("Page.navigate", { url });
   await waitForReady(session);
   await waitForAppReady(session);
 }
@@ -245,6 +251,7 @@ async function waitForAppReady(session) {
 }
 
 async function evalPage(session, expression) {
+  if (session.evaluate) return session.evaluate(expression);
   const result = await session.call("Runtime.evaluate", {
     expression,
     awaitPromise: true,
@@ -300,15 +307,17 @@ async function inspectPage(session, scenario) {
 }
 
 async function captureScenario(browser, scenario) {
-  const session = await openBlankTarget(browser.port);
+  const session = browser.engine
+    ? await browser.engine.newPage({ viewport: { width: scenario.width, height: scenario.height }, isMobile: scenario.mobile, hasTouch: scenario.mobile })
+    : await openBlankTarget(browser.port);
   try {
-    await setViewport(session, scenario);
+    if (!browser.engine) await setViewport(session, scenario);
     const url = `${APP_URL}${APP_URL.includes("?") ? "&" : "?"}mode=${scenario.mode}`;
     await navigate(session, url);
     await enterGame(session);
     await wait(1200);
     const inspection = await inspectPage(session, scenario);
-    const screenshot = await session.call("Page.captureScreenshot", {
+    const screenshot = session.screenshot ? { data: (await session.screenshot()).toString("base64") } : await session.call("Page.captureScreenshot", {
       format: "png",
       fromSurface: true,
       captureBeyondViewport: false
@@ -342,7 +351,7 @@ async function captureScenario(browser, scenario) {
       failures
     };
   } finally {
-    session.close();
+    await session.close();
   }
 }
 
