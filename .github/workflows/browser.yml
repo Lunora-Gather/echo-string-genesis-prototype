@@ -6,8 +6,8 @@ permissions:
   contents: read
 
 jobs:
-  webkit:
-    runs-on: ubuntu-24.04
+  safari:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -15,7 +15,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx --no-install playwright-core install --with-deps webkit
+      - run: sudo safaridriver --enable
       - name: Run interaction and visual regressions
         run: |
           (cd prototype && exec node server.mjs 4174) &

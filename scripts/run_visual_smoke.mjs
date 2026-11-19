@@ -1,8 +1,6 @@
+import { openSafari } from "./safari.mjs";
 import fs from "node:fs";
-import net from "node:net";
-import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const APP_URL = process.argv[2] || "http://127.0.0.1:4174/index.html";
@@ -43,174 +41,8 @@ const scenarios = [
   }
 ];
 
-function findBrowser() {
-  const candidates = [
-    process.env.CHROME_PATH,
-    process.env.EDGE_PATH,
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
-    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/microsoft-edge"
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!found) throw new Error("Chrome or Edge was not found for visual smoke.");
-  return found;
-}
-
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      server.close(() => resolve(address.port));
-    });
-  });
-}
-
-async function waitForJson(url, timeoutMs = 10000) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError = null;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return response.json();
-      lastError = new Error(`${url} returned ${response.status}`);
-    } catch (error) {
-      lastError = error;
-    }
-    await wait(120);
-  }
-  throw lastError || new Error(`Timed out waiting for ${url}`);
-}
-
-class CdpSession {
-  constructor(wsUrl) {
-    this.wsUrl = wsUrl;
-    this.nextId = 1;
-    this.pending = new Map();
-  }
-
-  async connect() {
-    this.socket = new WebSocket(this.wsUrl);
-    this.socket.addEventListener("message", (event) => {
-      const message = JSON.parse(event.data);
-      if (!message.id) return;
-      const pending = this.pending.get(message.id);
-      if (!pending) return;
-      this.pending.delete(message.id);
-      if (message.error) pending.reject(new Error(`${message.error.message}: ${message.error.data || ""}`));
-      else pending.resolve(message.result);
-    });
-    await new Promise((resolve, reject) => {
-      this.socket.addEventListener("open", resolve, { once: true });
-      this.socket.addEventListener("error", reject, { once: true });
-    });
-  }
-
-  call(method, params = {}) {
-    const id = this.nextId++;
-    this.socket.send(JSON.stringify({ id, method, params }));
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      setTimeout(() => {
-        if (!this.pending.has(id)) return;
-        this.pending.delete(id);
-        reject(new Error(`CDP timeout: ${method}`));
-      }, 10000);
-    });
-  }
-
-  close() {
-    this.socket?.close();
-  }
-}
-
-async function launchBrowser() {
-  if (!process.env.CHROME_PATH && !process.env.EDGE_PATH) {
-    const { webkit } = await import("playwright-core");
-    const engine = await webkit.launch();
-    return { engine, browserPath: "WebKit", cleanup: () => engine.close() };
-  }
-  const browserPath = findBrowser();
-  const port = await freePort();
-  const profilePrefix = "echo-visual-";
-  cleanupMatchingProfiles(profilePrefix);
-  const profile = path.join(os.tmpdir(), `${profilePrefix}${Date.now()}-${Math.random().toString(16).slice(2)}`);
-  const child = spawn(browserPath, [
-    "--headless=new",
-    "--disable-background-networking",
-    "--disable-background-timer-throttling",
-    "--disable-component-update",
-    "--disable-crash-reporter",
-    "--disable-crashpad",
-    "--disable-default-apps",
-    "--disable-extensions",
-    "--disable-features=Translate,CalculateNativeWinOcclusion",
-    "--disable-gpu",
-    "--disable-renderer-backgrounding",
-    "--disable-sync",
-    "--no-first-run",
-    "--no-default-browser-check",
-    `--remote-debugging-port=${port}`,
-    `--user-data-dir=${profile}`,
-    "about:blank"
-  ], { stdio: "ignore" });
-
-  const cleanup = async () => {
-    await terminateBrowser(child);
-    await wait(500);
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      try {
-        fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
-        return;
-      } catch (error) {
-        await wait(500);
-      }
-    }
-  };
-
-  try {
-    await waitForJson(`http://127.0.0.1:${port}/json/version`);
-    return { port, browserPath, cleanup };
-  } catch (error) {
-    await cleanup();
-    throw error;
-  }
-}
-
-async function openBlankTarget(port) {
-  const response = await fetch(`http://127.0.0.1:${port}/json/new?about%3Ablank`, { method: "PUT" });
-  if (!response.ok) throw new Error(`Could not create browser page: ${response.status}`);
-  const target = await response.json();
-  const session = new CdpSession(target.webSocketDebuggerUrl);
-  await session.connect();
-  await session.call("Page.enable");
-  await session.call("Runtime.enable");
-  return session;
-}
-
-async function setViewport(session, scenario) {
-  await session.call("Emulation.setDeviceMetricsOverride", {
-    width: scenario.width,
-    height: scenario.height,
-    deviceScaleFactor: 1,
-    mobile: scenario.mobile,
-    screenWidth: scenario.width,
-    screenHeight: scenario.height
-  });
-  await session.call("Emulation.setTouchEmulationEnabled", { enabled: scenario.mobile });
-}
-
 async function navigate(session, url) {
-  if (session.goto) await session.goto(url);
-  else await session.call("Page.navigate", { url });
+  await session.goto(url);
   await waitForReady(session);
   await waitForAppReady(session);
 }
@@ -250,19 +82,8 @@ async function waitForAppReady(session) {
   throw new Error("Echo String app did not render.");
 }
 
-async function evalPage(session, expression) {
-  if (session.evaluate) return session.evaluate(expression);
-  const result = await session.call("Runtime.evaluate", {
-    expression,
-    awaitPromise: true,
-    returnByValue: true,
-    timeout: 10000
-  });
-  if (result.exceptionDetails) {
-    const detail = result.exceptionDetails.exception?.description || result.exceptionDetails.text;
-    throw new Error(detail);
-  }
-  return result.result.value;
+function evalPage(session, expression) {
+  return session.evaluate(expression);
 }
 
 async function inspectPage(session, scenario) {
@@ -306,22 +127,15 @@ async function inspectPage(session, scenario) {
   })()`);
 }
 
-async function captureScenario(browser, scenario) {
-  const session = browser.engine
-    ? await browser.engine.newPage({ viewport: { width: scenario.width, height: scenario.height }, isMobile: scenario.mobile, hasTouch: scenario.mobile })
-    : await openBlankTarget(browser.port);
+async function captureScenario(scenario) {
+  const session = await openSafari(scenario.width, scenario.height);
   try {
-    if (!browser.engine) await setViewport(session, scenario);
     const url = `${APP_URL}${APP_URL.includes("?") ? "&" : "?"}mode=${scenario.mode}`;
     await navigate(session, url);
     await enterGame(session);
     await wait(1200);
     const inspection = await inspectPage(session, scenario);
-    const screenshot = session.screenshot ? { data: (await session.screenshot()).toString("base64") } : await session.call("Page.captureScreenshot", {
-      format: "png",
-      fromSurface: true,
-      captureBeyondViewport: false
-    });
+    const screenshot = { data: await session.screenshot() };
     const screenshotPath = path.join(ROOT, scenario.screenshot);
     fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
     fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, "base64"));
@@ -359,71 +173,23 @@ function wait(ms = 30) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function cleanupMatchingProfiles(prefix) {
-  try {
-    for (const entry of fs.readdirSync(os.tmpdir(), { withFileTypes: true })) {
-      if (!entry.isDirectory() || !entry.name.startsWith(prefix)) continue;
-      fs.rmSync(path.join(os.tmpdir(), entry.name), { recursive: true, force: true, maxRetries: 3, retryDelay: 150 });
-    }
-  } catch {
-    // Best-effort cleanup only. Current run still uses a fresh profile.
-  }
+const results = [];
+for (const scenario of scenarios) {
+  results.push(await captureScenario(scenario));
 }
-
-async function terminateBrowser(child) {
-  if (child.exitCode != null || child.signalCode != null) return;
-  if (process.platform === "win32" && child.pid) {
-    await new Promise((resolve) => {
-      let settled = false;
-      const done = () => {
-        if (settled) return;
-        settled = true;
-        resolve();
-      };
-      const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-      killer.once("exit", done);
-      killer.once("error", done);
-      setTimeout(done, 5000);
-    });
-  } else {
-    child.kill();
-  }
-  await waitForExit(child, 8000);
+const failures = results.flatMap((result) => result.failures.map((failure) => `${result.name}: ${failure}`));
+const output = {
+  build: "1.1.1",
+  browser: "Safari",
+  url: APP_URL,
+  passed: failures.length === 0,
+  scenarios: results,
+  failures
+};
+console.log(JSON.stringify(output, null, 2));
+if (OUTPUT_PATH) {
+  const resolvedOutput = path.isAbsolute(OUTPUT_PATH) ? OUTPUT_PATH : path.join(ROOT, OUTPUT_PATH);
+  fs.mkdirSync(path.dirname(resolvedOutput), { recursive: true });
+  fs.writeFileSync(resolvedOutput, `${JSON.stringify(output, null, 2)}\n`, "utf8");
 }
-
-function waitForExit(child, timeoutMs = 3000) {
-  if (child.exitCode != null || child.signalCode != null) return Promise.resolve();
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, timeoutMs);
-    child.once("exit", () => {
-      clearTimeout(timer);
-      resolve();
-    });
-  });
-}
-
-const browser = await launchBrowser();
-try {
-  const results = [];
-  for (const scenario of scenarios) {
-    results.push(await captureScenario(browser, scenario));
-  }
-  const failures = results.flatMap((result) => result.failures.map((failure) => `${result.name}: ${failure}`));
-  const output = {
-    build: "1.1.1",
-    browser: path.basename(browser.browserPath),
-    url: APP_URL,
-    passed: failures.length === 0,
-    scenarios: results,
-    failures
-  };
-  console.log(JSON.stringify(output, null, 2));
-  if (OUTPUT_PATH) {
-    const resolvedOutput = path.isAbsolute(OUTPUT_PATH) ? OUTPUT_PATH : path.join(ROOT, OUTPUT_PATH);
-    fs.mkdirSync(path.dirname(resolvedOutput), { recursive: true });
-    fs.writeFileSync(resolvedOutput, `${JSON.stringify(output, null, 2)}\n`, "utf8");
-  }
-  if (failures.length) process.exit(1);
-} finally {
-  await browser.cleanup();
-}
+if (failures.length) process.exit(1);

@@ -55,11 +55,10 @@ powershell -ExecutionPolicy Bypass -File .\prototype\start.ps1 -Port 4174
 
 ## 验证
 
-各平台默认使用 WebKit 验证点击和布局。也可用 `CHROME_PATH` 或 `EDGE_PATH` 指定已安装的浏览器，复跑原有兼容性检查。在仓库根目录运行：
+浏览器回归使用 macOS 自带的 Safari。请先在 Safari 开发者设置中开启「允许远程自动化」，然后在仓库根目录运行以下命令。
 
 ```sh
 npm ci
-npx playwright-core install webkit
 (cd prototype && node server.mjs 4174)
 ```
 
