@@ -98,6 +98,11 @@ class CdpSession {
 }
 
 async function launchBrowser() {
+  if (!process.env.CHROME_PATH && !process.env.EDGE_PATH) {
+    const { webkit } = await import("playwright-core");
+    const engine = await webkit.launch();
+    return { engine, browserPath: "WebKit", cleanup: () => engine.close() };
+  }
   const browserPath = findBrowser();
   const port = await freePort();
   const profilePrefix = "echo-dom-click-";
@@ -146,7 +151,14 @@ async function launchBrowser() {
   }
 }
 
-async function openPageTarget(port, url) {
+async function openPageTarget(browser, url) {
+  if (browser.engine) {
+    const page = await browser.engine.newPage({ viewport: { width: 1440, height: 960 } });
+    await page.goto(url);
+    await waitForAppReady(page);
+    return page;
+  }
+  const port = browser.port;
   const response = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: "PUT" });
   if (!response.ok) throw new Error(`Could not create browser page: ${response.status}`);
   const target = await response.json();
@@ -184,6 +196,7 @@ async function waitForAppReady(session) {
 }
 
 async function evalPage(session, expression) {
+  if (session.evaluate) return session.evaluate(expression);
   const result = await session.call("Runtime.evaluate", {
     expression,
     awaitPromise: true,
@@ -322,13 +335,13 @@ async function assertPage(session, expression, label) {
   if (!passed) throw new Error(`DOM click assertion failed: ${label}`);
 }
 
-async function runControlAudit(port) {
+async function runControlAudit(browser) {
   const url = `${APP_URL}${APP_URL.includes("?") ? "&" : "?"}mode=guided&controls=1`;
-  const session = await openPageTarget(port, url);
+  const session = await openPageTarget(browser, url);
   const checks = [];
   const check = (label, passed, detail = "") => checks.push({ label, passed: Boolean(passed), detail });
   try {
-    await session.call("Emulation.setDeviceMetricsOverride", {
+    if (!browser.engine) await session.call("Emulation.setDeviceMetricsOverride", {
       width: 1440,
       height: 960,
       deviceScaleFactor: 1,
@@ -431,7 +444,7 @@ async function runControlAudit(port) {
       checks
     };
   } finally {
-    session.close();
+    await session.close();
   }
 }
 
@@ -522,23 +535,23 @@ async function route(session, mode) {
   })()`);
 }
 
-async function runMode(port, mode) {
+async function runMode(browser, mode) {
   const url = `${APP_URL}${APP_URL.includes("?") ? "&" : "?"}mode=${mode}`;
-  const session = await openPageTarget(port, url);
+  const session = await openPageTarget(browser, url);
   try {
     return await route(session, mode);
   } finally {
-    session.close();
+    await session.close();
   }
 }
 
 const browser = await launchBrowser();
 try {
-  const controls = await runControlAudit(browser.port);
+  const controls = await runControlAudit(browser);
   const reports = {
-    guided: await runMode(browser.port, "guided"),
-    low: await runMode(browser.port, "low"),
-    expedition: await runMode(browser.port, "expedition")
+    guided: await runMode(browser, "guided"),
+    low: await runMode(browser, "low"),
+    expedition: await runMode(browser, "expedition")
   };
   const failures = [];
   controls.checks.filter((item) => !item.passed).forEach((item) => failures.push(`control: ${item.label}`));

@@ -55,6 +55,21 @@ powershell -ExecutionPolicy Bypass -File .\prototype\start.ps1 -Port 4174
 
 ## 验证
 
+各平台默认使用 WebKit 验证点击和布局。也可用 `CHROME_PATH` 或 `EDGE_PATH` 指定已安装的浏览器，复跑原有兼容性检查。在仓库根目录运行：
+
+```sh
+npm ci
+npx playwright-core install webkit
+(cd prototype && node server.mjs 4174)
+```
+
+保持服务运行，在另一个终端的同一目录执行：
+
+```sh
+node scripts/run_dom_click_regression.mjs
+node scripts/run_visual_smoke.mjs
+```
+
 完整验证：
 
 ```powershell
