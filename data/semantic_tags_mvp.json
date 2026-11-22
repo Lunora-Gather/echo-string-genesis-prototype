@@ -17,7 +17,7 @@
       "durationType": "PersistentUntilRewritten",
       "extractCost": 1,
       "injectCost": 2,
-      "compatibleObjectTypes": ["Door", "Gate", "Chest", "ShieldedEnemy", "Mechanism"],
+      "compatibleObjectTypes": ["Door", "Gate", "Mechanism", "Enemy", "Boss"],
       "incompatibleObjectTypes": ["Liquid", "LooseDebris"],
       "replacesTagsInSameSlot": true,
       "effects": {
@@ -165,7 +165,7 @@
       "defaultDurationSeconds": 12,
       "extractCost": 1,
       "injectCost": 3,
-      "compatibleObjectTypes": ["Enemy", "Boss", "Water", "Ice", "Door", "Mechanism", "FireSource"],
+      "compatibleObjectTypes": ["Enemy", "Boss", "Water", "Ice", "Door", "Mechanism", "FireSource", "Stone"],
       "incompatibleObjectTypes": [],
       "replacesTagsInSameSlot": true,
       "effects": {

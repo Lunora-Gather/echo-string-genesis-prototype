@@ -31,6 +31,7 @@ class FakeElement {
     this.tagName = tag.toUpperCase();
     this.children = [];
     this.dataset = {};
+    this.listeners = new Map();
     this.style = {
       setProperty: (key, value) => {
         this.style[key] = value;
@@ -51,8 +52,25 @@ class FakeElement {
   }
 
   remove() {}
-  addEventListener() {}
-  click() {}
+  addEventListener(type, listener) {
+    const listeners = this.listeners.get(type) || [];
+    listeners.push(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  click() {
+    if (this.disabled) return;
+    for (const listener of this.listeners.get("click") || []) listener({ target: this });
+  }
+
+  get innerHTML() {
+    return this.markup;
+  }
+
+  set innerHTML(markup) {
+    this.markup = markup;
+    this.children = [];
+  }
 
   setAttribute(name, value) {
     this.attributes[name] = value;
@@ -125,12 +143,14 @@ export function createDomHarness() {
   return { document, elements, modeButtons };
 }
 
-export function loadAppContext(appPath = "prototype/app.js") {
+export function loadAppContext(appPath = "prototype/app.js", { storage, search = "" } = {}) {
   const { document, elements, modeButtons } = createDomHarness();
   const context = {
     console,
     document,
     window: null,
+    localStorage: storage,
+    __echoRuntimeIsTesting: !storage,
     navigator: { clipboard: { writeText: async () => {} } },
     URL: class URLShim extends URL {
       static createObjectURL() {
@@ -161,7 +181,7 @@ export function loadAppContext(appPath = "prototype/app.js") {
     URLSearchParams
   };
   context.window = context;
-  context.location = { search: "" };
+  context.location = { search };
   context.addEventListener = () => {};
 
   const prototypeDir = appPath.replace(/app\.js$/, "");
@@ -183,6 +203,7 @@ export function readAppMetadata(context) {
     buildName: BUILD_NAME,
     rollout: structuredClone(BUILD_ROLLOUT),
     tags: Object.entries(TAGS).map(([id, item]) => ({ id, ...item })),
+    reactions: REACTION_DISCOVERIES.map(({ key, name, tags }) => ({ id: "Reaction." + key, name, tags })),
     zones: ZONES.map((zone) => ({
       id: zone.id,
       name: zone.name,

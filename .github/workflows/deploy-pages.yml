@@ -28,8 +28,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
       - name: Validate playable artifact
         run: |
+          npm test
           test -f prototype/index.html
           test -f prototype/app.js
           test -f prototype/regression.js
@@ -40,13 +45,19 @@ jobs:
           grep -q "regression.js?v=1.1.1" prototype/index.html
           grep -q "1.1.1 Chronicle Expedition" prototype/index.html
 
+      - name: Stage static site
+        run: |
+          mkdir -p _site/core
+          cp prototype/{.nojekyll,index.html,app.js,regression.js,styles.css,cyber_ink_bg.jpg,light_parchment_bg.jpg,courtyard-scene.jpg,courtyard-objects.jpg} _site/
+          cp prototype/core/*.js _site/core/
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
       - name: Upload playable artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: prototype
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment

@@ -6,6 +6,15 @@ permissions:
   contents: read
 
 jobs:
+  game-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm test
+
   safari:
     runs-on: macos-latest
     steps:
@@ -22,5 +31,4 @@ jobs:
           server=$!
           trap 'kill "$server" 2>/dev/null || true' EXIT
           curl -fsS --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4174/index.html -o /dev/null
-          node scripts/run_dom_click_regression.mjs
-          node scripts/run_visual_smoke.mjs
+          npm run test:browser

@@ -1,15 +1,22 @@
 const RUNTIME_CONFIG = globalThis.EchoRuntimeConfig || {
   version: "1.1.1",
   name: "Chronicle Expedition",
-  saveSchema: 2,
+  saveSchema: 3,
   saveKey: "echo_string_save_v1.1",
   profileKey: "echo_string_profile_v1.1",
   themePreferenceKey: "echo_string_theme_preference_v1"
 };
 const PROGRESSION = globalThis.EchoProgression;
+const PAGE_PARAMS = new URLSearchParams(window.location.search);
+const REGRESSION_AUTORUNS = ["guided-regression", "low-regression", "suite-regression"];
 
 if (!PROGRESSION) {
   throw new Error("EchoProgression core module failed to load.");
+}
+
+function isRegressionSession() {
+  return window.__echoRuntimeIsTesting || document.body?.dataset?.domClickMode ||
+    PAGE_PARAMS.has("regression") || REGRESSION_AUTORUNS.includes(PAGE_PARAMS.get("autorun"));
 }
 
 const TAGS = {
@@ -25,6 +32,29 @@ const TAGS = {
   "Semantic.Field.Repel": { name: "排斥", slot: "Field", color: "#47D18C", extract: 1, inject: 3, compatible: ["FieldPillar", "Enemy", "Boss", "Mechanism", "Debris", "Stone"] }
 };
 
+const BOSS_COUNTERS = {
+  3: {
+    reaction: "Reaction.SteamBurst",
+    tags: ["Semantic.Temperature.Overheated", "Semantic.Medium.Wet"],
+    hint: "第一层护文响应过热与潮湿。"
+  },
+  2: {
+    reaction: "Reaction.FractureWindow",
+    tags: ["Semantic.Temperature.Frozen", "Semantic.Structure.Fragile"],
+    hint: "第二层护文需要冻结后写入脆弱，再用重击扩开裂隙。"
+  },
+  1: {
+    reaction: "Reaction.FieldPulse",
+    tags: ["Semantic.Field.Attract", "Semantic.Field.Repel"],
+    hint: "第三层护文需要让吸引和排斥在守卫身上相撞。"
+  },
+  0: {
+    reaction: "",
+    tags: ["Semantic.Structure.Fragile"],
+    hint: "结构槽开放，写入脆弱后重击核心。"
+  }
+};
+
 /* ==========================================================================
    Echo Audio Engine (Web Audio API Synthesizer)
    ========================================================================== */
@@ -34,7 +64,7 @@ class EchoAudioEngine {
     this.bgmGain = null;
     this.masterGain = null;
     this.sfxVolume = 0.7;
-    this.bgmVolume = 0.4;
+    this.bgmVolume = 0.5;
     this.initialized = false;
     this.isMuted = false;
     this.bgmTimeout = null;
@@ -42,7 +72,7 @@ class EchoAudioEngine {
 
   init() {
     if (this.initialized) return;
-    if (typeof window === "undefined" || typeof document === "undefined" || window.navigator?.webdriver || document.body?.dataset?.domClickMode || window.__echoRuntimeIsTesting) {
+    if (window.navigator?.webdriver || isRegressionSession()) {
       this.isMuted = true;
       this.initialized = true;
       return;
@@ -291,111 +321,210 @@ if (typeof window !== "undefined") {
 /* ==========================================================================
    Save & Load (LocalStorage)
    ========================================================================== */
+let savedGameRaw = null;
+let resumedGame = false;
+
+function getGameStorage() {
+  if (window.navigator?.webdriver || isRegressionSession()) return null;
+  return window.localStorage;
+}
+
 function saveGameToLocal() {
-  if (typeof window === "undefined" || typeof localStorage === "undefined" || window.navigator?.webdriver || document.body?.dataset?.domClickMode || window.__echoRuntimeIsTesting) return;
   try {
-    const saveData = {
+    const storage = getGameStorage();
+    if (!storage) return;
+    if (storage.getItem(RUNTIME_CONFIG.saveKey) !== savedGameRaw) {
+      state.storageConflict = true;
+      return;
+    }
+    const raw = JSON.stringify({
       schema: RUNTIME_CONFIG.saveSchema,
       version: BUILD_LABEL,
+      sessionId: state.sessionId,
       zone: state.zone,
       testMode: state.testMode,
       ink: state.ink,
       inventory: state.inventory,
       flags: state.flags,
-      unlockedZones: state.unlockedZones || ["Z1"],
-      theme: state.theme,
+      unlockedZones: state.unlockedZones,
       language: state.language,
-      run: state.run
-    };
-    const currentZoneId = zone().id;
-    if (!saveData.unlockedZones.includes(currentZoneId)) {
-      saveData.unlockedZones.push(currentZoneId);
+      run: state.run,
+      profile: state.profile,
+      objects: Object.fromEntries(state.zones.map(({ id, objects }) => [id, objects])),
+      elapsedSec: state.metrics.completedAt ?? elapsedSeconds(),
+      metrics: state.metrics,
+      mastery: state.mastery,
+      checkpoints: state.checkpoints,
+      undoStack: state.undoStack
+    });
+    storage.setItem(RUNTIME_CONFIG.saveKey, raw);
+    savedGameRaw = raw;
+  } catch (error) {
+    console.warn("LocalStorage save failed:", error);
+  }
+}
+
+function restoreObjects(zoneConfig, savedObjects) {
+  const byId = new Map((Array.isArray(savedObjects) ? savedObjects : [])
+    .filter((object) => object && typeof object.id === "string")
+    .map((object) => [object.id, object]));
+  return zoneConfig.objects.map((template) => {
+    const saved = byId.get(template.id);
+    const obj = structuredClone(template);
+    if (!saved) return obj;
+    if (Array.isArray(saved.currentTags)) {
+      obj.currentTags = [...new Set(saved.currentTags.filter((id) => Object.hasOwn(TAGS, id)))];
     }
-    localStorage.setItem(RUNTIME_CONFIG.saveKey, JSON.stringify(saveData));
-    saveProfileToLocal();
-  } catch (e) {
-    console.warn("LocalStorage save failed:", e);
-  }
+    if (Number.isFinite(saved.hp) && obj.maxHp) obj.hp = Math.max(0, Math.min(obj.maxHp, saved.hp));
+    if (obj.id === "warden" && Number.isInteger(saved.shieldLayers)) {
+      obj.shieldLayers = Math.max(0, Math.min(template.shieldLayers, saved.shieldLayers));
+      if (obj.shieldLayers === 0) obj.lockedSlots = [];
+    }
+    for (const key of ["scanned", "breach", "destroyed", "defeated", "fractureWindow"]) {
+      if (typeof saved[key] === "boolean") obj[key] = saved[key];
+    }
+    if (saved.reactionHistory && typeof saved.reactionHistory === "object") obj.reactionHistory = saved.reactionHistory;
+    return obj;
+  });
 }
 
-function saveProfileToLocal() {
-  if (typeof localStorage === "undefined" || window.navigator?.webdriver || document.body?.dataset?.domClickMode || window.__echoRuntimeIsTesting) return;
-  try {
-    localStorage.setItem(RUNTIME_CONFIG.profileKey, JSON.stringify(state.profile));
-  } catch (error) {
-    console.warn("Profile save failed:", error);
-  }
+function restoreInventory(inventory) {
+  return Array.isArray(inventory) ? inventory.filter((id) => Object.hasOwn(TAGS, id)).slice(0, inventoryCapacity()) : [];
 }
 
-function loadProfileFromLocal() {
-  try {
-    const rawProfile = localStorage.getItem(RUNTIME_CONFIG.profileKey);
-    state.profile = PROGRESSION.createProfile(rawProfile ? JSON.parse(rawProfile) : {});
-  } catch (error) {
-    console.warn("Profile load failed:", error);
-    state.profile = PROGRESSION.createProfile();
+function restoreMetrics(saved, elapsedSec) {
+  const metrics = createMetrics(state.testMode);
+  for (const [key, value] of Object.entries(metrics)) {
+    const incoming = saved?.[key];
+    if (Array.isArray(value) && Array.isArray(incoming)) {
+      metrics[key] = incoming.filter((item) => item && typeof item === "object" && !Array.isArray(item));
+    }
+    else if (typeof value === "number" && Number.isFinite(incoming)) metrics[key] = Math.max(0, incoming);
+    else if (value === null && Number.isFinite(incoming)) metrics[key] = Math.max(0, incoming);
+    else if (value && typeof value === "object" && incoming && typeof incoming === "object" && !Array.isArray(incoming)) {
+      metrics[key] = { ...value, ...Object.fromEntries(Object.entries(incoming).filter(([, count]) => Number.isFinite(count) && count >= 0)) };
+    }
+  }
+  metrics.startedAt = Date.now() - 1000 * (Number.isFinite(elapsedSec) ? Math.max(0, elapsedSec) : 0);
+  return metrics;
+}
+
+function restoreHistory(saved) {
+  const readSnapshot = (snapshot) => {
+    if (!Number.isInteger(snapshot?.zone)) return null;
+    const config = ZONES[snapshot?.zone];
+    if (!config || !Array.isArray(snapshot.objects) || !Number.isFinite(snapshot.ink)) return null;
+    return {
+      ...snapshot,
+      label: typeof snapshot.label === "string" ? snapshot.label : config.id,
+      ink: Math.max(0, Math.min(state.maxInk, snapshot.ink)),
+      objects: restoreObjects(config, snapshot.objects),
+      flags: snapshot.flags || {},
+      inventory: restoreInventory(snapshot.inventory)
+    };
+  };
+  state.undoStack = (Array.isArray(saved.undoStack) ? saved.undoStack : [])
+    .map(readSnapshot).filter((item) => item?.zone === state.zone).slice(0, 3);
+  state.checkpoints = {};
+  for (const [index, config] of ZONES.entries()) {
+    const checkpoint = readSnapshot(saved.checkpoints?.[config.id]);
+    if (checkpoint?.zone === index) state.checkpoints[config.id] = checkpoint;
   }
 }
 
 function loadGameFromLocal() {
-  if (typeof window === "undefined" || typeof localStorage === "undefined" || window.navigator?.webdriver || document.body?.dataset?.domClickMode || window.__echoRuntimeIsTesting) return;
   try {
-    loadProfileFromLocal();
-    const preferredTheme = localStorage.getItem(THEME_PREFERENCE_KEY);
-    state.theme = preferredTheme === "dark" ? "dark" : "light";
-    const raw = localStorage.getItem(RUNTIME_CONFIG.saveKey);
-    if (!raw) {
-      state.run = PROGRESSION.createRun(state.profile, state.testMode);
-      state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
-      state.ink = state.maxInk;
-      applyTheme();
+    const storage = getGameStorage();
+    if (!storage) return;
+    const legacyProfile = storage.getItem(RUNTIME_CONFIG.profileKey);
+    if (legacyProfile) {
+      try {
+        state.profile = PROGRESSION.createProfile(JSON.parse(legacyProfile));
+      } catch (error) {
+        console.warn("Legacy profile load failed:", error);
+      }
+    }
+    const preferredTheme = storage.getItem(THEME_PREFERENCE_KEY);
+    savedGameRaw = storage.getItem(RUNTIME_CONFIG.saveKey);
+    let saved = null;
+    if (savedGameRaw) {
+      try {
+        saved = JSON.parse(savedGameRaw);
+      } catch (error) {
+        console.warn("Game save is invalid:", error);
+      }
+    }
+    state.theme = (preferredTheme ?? saved?.theme) === "dark" ? "dark" : "light";
+    if (saved?.profile) state.profile = PROGRESSION.createProfile(saved.profile);
+    if (!PAGE_PARAMS.has("lang") && Object.hasOwn(LANGUAGES, saved?.language)) state.language = saved.language;
+    const savedMode = Object.hasOwn(TEST_MODES, saved?.testMode) ? saved.testMode : "guided";
+    const requestedMode = PAGE_PARAMS.get("mode");
+    const hasRequestedMode = Object.hasOwn(TEST_MODES, requestedMode);
+    if (!hasRequestedMode) state.testMode = savedMode;
+    const sameRunType = runType(state.testMode) === runType(savedMode);
+    const canResume = sameRunType && Number.isInteger(saved?.zone) && saved.zone >= 0 && saved.zone < ZONES.length;
+    state.run = PROGRESSION.createRun(state.profile, state.testMode, canResume ? saved.run : null);
+    state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
+    state.ink = state.maxInk;
+    if (!canResume) return;
+
+    resumedGame = true;
+    state.zone = saved.zone;
+    const hasObjectState = saved.schema === RUNTIME_CONFIG.saveSchema && saved.objects;
+    state.unlockedZones = ZONES
+      .filter(({ id }, index) => index <= state.zone || (hasObjectState && Array.isArray(saved.unlockedZones) && saved.unlockedZones.includes(id)))
+      .map(({ id }) => id);
+    state.flags = { ...saved.flags };
+    if (!hasObjectState) {
+      // Older saves recorded resources and flags without the objects they came from.
+      // Resume at a playable area entrance, keeping the long-term record.
+      if (!isFinalZone()) {
+        for (const flag of Object.keys(state.flags)) {
+          if (zoneFlagBelongsToCurrentZone(flag)) delete state.flags[flag];
+        }
+        return;
+      }
+      state.metrics.completedAt = 0;
       return;
     }
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.zone === "number") {
-      const requestedMode = new URLSearchParams(window.location.search).get("mode");
-      if (!requestedMode && TEST_MODES[parsed.testMode]) state.testMode = parsed.testMode;
-      state.run = PROGRESSION.createRun(state.profile, state.testMode, parsed.run);
-      state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
-      state.zone = parsed.zone;
-      state.ink = Math.min(state.maxInk, Number.isFinite(parsed.ink) ? parsed.ink : state.maxInk);
-      state.inventory = (parsed.inventory || []).slice(0, PROGRESSION.inventoryCapacity(state.profile));
-      state.flags = parsed.flags || {};
-      state.unlockedZones = parsed.unlockedZones || ["Z1"];
-      const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
-      const urlLanguage = requestedLanguage
-        ? (LANGUAGES[requestedLanguage] ? requestedLanguage : "zh-Hans")
-        : null;
-      state.language = urlLanguage || (LANGUAGES[parsed.language] ? parsed.language : state.language);
-      state.zones = freshZones();
-      state.flags = { ...state.flags, ...parsed.flags };
-      applyTheme();
-      log("本地从存档自动载入成功，欢迎回来。", "good");
-    } else {
-      state.run = PROGRESSION.createRun(state.profile, state.testMode);
-      state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
-      state.ink = state.maxInk;
-      applyTheme();
-    }
-  } catch (e) {
-    console.warn("LocalStorage load failed:", e);
+
+    if (typeof saved.sessionId === "string" && /^DUANJU-[a-z0-9-]+$/i.test(saved.sessionId)) state.sessionId = saved.sessionId;
+    state.zones = ZONES.map((config) => ({ ...config, objects: restoreObjects(config, saved.objects[config.id]) }));
+    state.ink = Number.isFinite(saved.ink) ? Math.max(0, Math.min(state.maxInk, saved.ink)) : state.maxInk;
+    state.inventory = restoreInventory(saved.inventory);
+    state.metrics = restoreMetrics(saved.metrics, saved.elapsedSec);
+    state.log = state.metrics.timeline.slice(0, 9);
+    state.lastFeedback = state.metrics.feedbackEvents[0] || null;
+    state.mastery = {
+      earned: { ...saved.mastery?.earned },
+      zoneMistakeBaseline: { ...state.mastery.zoneMistakeBaseline, ...saved.mastery?.zoneMistakeBaseline }
+    };
+    restoreHistory(saved);
+  } catch (error) {
+    console.warn("LocalStorage load failed:", error);
+  } finally {
     applyTheme();
   }
+}
+
+function saveAndRender() {
+  saveGameToLocal();
+  render();
 }
 
 function applyTheme() {
   if (typeof document === "undefined") return;
   if (state.theme === "light") {
     document.body.classList.add("theme-light");
-    if (el.themeToggleBtn) el.themeToggleBtn.textContent = "☀️ 亮色";
+    if (el.themeToggleBtn) el.themeToggleBtn.textContent = "亮色";
   } else {
     document.body.classList.remove("theme-light");
-    if (el.themeToggleBtn) el.themeToggleBtn.textContent = "🌙 暗色";
+    if (el.themeToggleBtn) el.themeToggleBtn.textContent = "暗色";
   }
 }
 
 function triggerScreenShake(intensity = 'medium') {
-  if (typeof document === "undefined" || window.navigator?.webdriver || document.body?.dataset?.domClickMode || window.__echoRuntimeIsTesting) return;
+  if (window.navigator?.webdriver || isRegressionSession()) return;
   const target = document.querySelector(".app-shell") || document.body;
   if (!target) return;
   target.classList.remove("screen-shake-medium", "screen-shake-heavy");
@@ -512,9 +641,9 @@ const LOW_OBJECTIVES = {
 };
 
 const REACTION_DISCOVERIES = [
-  { key: "SteamBurst", name: "蒸汽爆发", formula: "过热 + 潮湿", clue: "温度与介质会彼此放大。" },
-  { key: "FractureWindow", name: "破裂窗口", formula: "冻结 + 脆弱", clue: "低温会让脆弱结构进一步开裂。" },
-  { key: "FieldPulse", name: "力场震荡", formula: "吸引 + 排斥", clue: "相反方向在同一目标上无法共存。" }
+  { key: "SteamBurst", name: "蒸汽爆发", tags: BOSS_COUNTERS[3].tags, clue: "温度与介质会彼此放大。" },
+  { key: "FractureWindow", name: "破裂窗口", tags: BOSS_COUNTERS[2].tags, clue: "低温会让脆弱结构进一步开裂。" },
+  { key: "FieldPulse", name: "力场震荡", tags: BOSS_COUNTERS[1].tags, clue: "相反方向在同一目标上无法共存。" }
 ];
 
 const ZONE_MASTERY = {
@@ -530,284 +659,6 @@ const ZONE_MASTERY = {
 const LANGUAGES = {
   "zh-Hans": { label: "简", htmlLang: "zh-CN", title: "语弦生态：断句庭院" },
   "zh-Hant": { label: "繁", htmlLang: "zh-Hant", title: "語弦生態：斷句庭院" }
-};
-
-const EN_EXACT = {
-  "断句庭院": "Duanju Courtyard",
-  "地图": "Map",
-  "日志": "Log",
-  "亮色": "Light",
-  "暗色": "Dark",
-  "主题": "Theme",
-  "配置": "Settings",
-  "引导": "Guided",
-  "探索": "Explore",
-  "沙盒": "Sandbox",
-  "原墨": "Ink",
-  "词库": "Lexicon",
-  "区域": "Zone",
-  "用时": "Time",
-  "共鸣": "Resonance",
-  "恢复建议": "Recovery",
-  "分享": "Share",
-  "撤销": "Undo",
-  "检查点": "Checkpoint",
-  "重开本轮": "Restart",
-  "流程": "Route",
-  "重置": "Reset",
-  "当前目标": "Objective",
-  "下一步": "Next",
-  "观察": "Observe",
-  "语义": "Semantic",
-  "战斗": "Combat",
-  "机关": "Mechanism",
-  "推进": "Advance",
-  "扫描器": "Scanner",
-  "临时词库": "Temporary Lexicon",
-  "清空": "Clear",
-  "事件日志": "Event Log",
-  "反思提示": "Reflection",
-  "试玩指标": "Playtest Metrics",
-  "补墨": "Refill",
-  "重置区": "Reset Zone",
-  "报告": "Report",
-  "扫描": "Scan",
-  "剥离选中词": "Extract Selected",
-  "注入选中词": "Inject Selected",
-  "重击": "Heavy Strike",
-  "弹反破绽": "Parry",
-  "推动石块": "Move Block",
-  "压住机关": "Press Plate",
-  "聚拢碎片": "Gather Debris",
-  "形成桥面": "Form Bridge",
-  "目标未完成": "Objective Incomplete",
-  "进入下一区域": "Next Zone",
-  "切片完成": "Slice Complete",
-  "当前词缀": "Current Tags",
-  "开放槽位": "Open Slots",
-  "扫描结果": "Scan Result",
-  "无显性词缀": "No visible tags",
-  "已扫描": "Scanned",
-  "未扫描": "Unscanned",
-  "未知": "Unknown",
-  "无锁定槽": "No locked slots",
-  "锁定": "Locked",
-  "词库为空": "Lexicon Empty",
-  "可扫描": "Scannable",
-  "推荐目标": "Recommended",
-  "可取词": "Extractable",
-  "稳定词源": "Stable Source",
-  "可战斗": "Combat Ready",
-  "破绽已开": "Breach Open",
-  "已读取": "Read",
-  "可写入": "Writable",
-  "槽位不符": "Wrong Slot",
-  "槽位锁定": "Slot Locked",
-  "不可作用": "Incompatible",
-  "需扫描": "Scan First",
-  "进行中": "Active",
-  "已达成": "Complete",
-  "待进入": "Locked",
-  "本区试炼": "Zone Trial",
-  "已精通": "Mastered",
-  "待结算": "Ready",
-  "未解析共鸣": "Unresolved Resonance",
-  "已发现组合反应": "Discovered Reactions",
-  "已生效": "Applied",
-  "需调整": "Adjust",
-  "被阻塞": "Blocked",
-  "等待操作": "Awaiting Input",
-  "系统配置 (Settings)": "System Settings",
-  "环境背景垫音 (Ambient BGM)": "Ambient BGM",
-  "系统交互音效 (System SFX)": "System SFX",
-  "清空本地存档 (Reset Save)": "Reset Local Save",
-  "快速旅行 (关卡直接跳转)": "Fast Travel",
-  "建立同步链路": "Establish Sync Link",
-  "模式": "Mode",
-  "本区": "Zone Time",
-  "剥离": "Extract",
-  "注入": "Inject",
-  "反应": "Reactions",
-  "质量": "Quality",
-  "误操作": "Mistakes",
-  "Boss语义": "Boss Edits",
-  "护文反制": "Ward Counters",
-  "首扫": "First Scan",
-  "首取": "First Extract",
-  "首写": "First Inject",
-  "最长区": "Longest Zone",
-  "还没有事件。": "No events yet.",
-  "语义恢复协议 / 001": "SEMANTIC RECOVERY / 001",
-  "旅行地图": "Travel Map",
-  "历史日志": "History Log",
-  "切换主题": "Toggle Theme",
-  "游戏配置": "Game Settings",
-  "语言 / Language": "Language",
-  "玩法模式": "Play Mode",
-  "玩家状态": "Player Status",
-  "试玩会话状态": "Playtest Session",
-  "关闭地图": "Close Map",
-  "关闭扫描器": "Close Scanner",
-  "语义图谱与区域精通": "Semantic Atlas and Zone Mastery",
-  "当前决策摘要": "Current Decision",
-  "区域步骤": "Zone Steps",
-  "场景对象": "Scene Objects",
-  "通关总结": "Completion Summary",
-  "未选择对象": "No Object Selected",
-  "先选择一个场景对象。": "Select a scene object first.",
-  "先选择一个对象。": "Select an object first.",
-  "本地从存档自动载入成功，欢迎回来。": "Local save loaded. Welcome back.",
-  "寻找能改变结构强度的词缀。": "Find a tag that changes structural strength.",
-  "质量会同时影响移动和机关压力。": "Mass affects both movement and pressure.",
-  "战斗目标需要先暴露可改写窗口。": "Expose a rewrite window before editing a combat target.",
-  "温度和介质的组合会改变场面。": "Temperature and medium combinations can reshape the encounter.",
-  "力场方向决定碎片移动结果。": "Field direction determines how debris moves.",
-  "Boss护文会轮换响应不同组合反应。": "The boss wards rotate between different reaction counters.",
-  "切片完成。": "Slice complete.",
-  "当前目标已达成。": "Objective complete.",
-  "先选择对象。": "Select an object first.",
-  "先选择目标。": "Select a target first.",
-  "先选择敌人。": "Select an enemy first.",
-  "先选择注入目标。": "Select an injection target first.",
-  "先扫描目标。": "Scan the target first.",
-  "先点选目标身上的词缀。": "Select a tag on the target first.",
-  "先选择词库中的词缀。": "Select a tag from the lexicon first.",
-  "先聚拢碎片。": "Gather the debris first.",
-  "完成当前目标后可进入下一段。": "Complete the objective to advance.",
-  "敌人才有弹反破绽。": "Only enemies expose parry breaches.",
-  "当前目标不需要重击。": "This target does not need a heavy strike.",
-  "临时词库已满。": "The temporary lexicon is full.",
-  "原墨不足。": "Not enough Ink.",
-  "未知词缀。": "Unknown tag.",
-  "目标当前没有这个可剥离词缀。": "The target does not currently expose this extractable tag.",
-  "门": "G", "像": "S", "石": "B", "机": "M", "敌": "E", "台": "L", "水": "W", "火": "F",
-  "引": "A", "斥": "R", "桥": "B", "守": "W", "冰": "I", "裂": "C", "库": "A",
-  "世界由原初作者写就，却在失去维护后分崩离析。": "The world was written by its First Author, then fractured when its maintenance ceased.",
-  "“重词污染”与“语义冲突”正疯狂蚕食着仅存的物性规则。": "Word pollution and semantic conflicts are consuming the last surviving laws of matter.",
-  "作为流淌着空白原墨的“异墨者 · 楷”，你将能够读取并修改物体的底层语义。": "As Kai, an Inkborn carrying blank primal ink, you can read and rewrite the semantics beneath all things.",
-  "请穿过故障的“断句庭院”，剥离、注入和重写代码，完成原初修复考验。": "Cross the corrupted Duanju Courtyard. Extract, inject, and rewrite its rules to complete the restoration trial.",
-  "点击下方按钮建立同步链路，重塑万物法则。": "Establish the sync link and begin reshaping the laws of the world.",
-  "《语弦生态：创世纪》叙事恢复接口 v1.1.1": "Echo-String: Genesis / Narrative Recovery Interface v1.1.1",
-  "选择场景中的对象，然后扫描。": "Select an object in the scene, then scan it.",
-  "选择场景对象后开始扫描。": "Select a scene object to begin scanning.",
-  "选择封文大门或裂纹石像开始。": "Select the Sealed Gate or Cracked Statue to begin.",
-  "当前对象未扫描，先确认词缀和槽位。": "This object is unscanned. Reveal its tags and slots first.",
-  "当前没有明显阻塞。": "No obvious blockers.",
-  "目标已达成，推进到下一段。": "Objective complete. Advance to the next section.",
-  "从对象取词后会显示在这里。": "Extracted tags appear here.",
-  "扫描推荐目标，点选词缀并剥离。下一步写入目标会在场景中高亮。": "Scan the recommended target, select a tag, and extract it. Writable targets will then be highlighted.",
-  "扫描后显示词缀、槽位和取写成本。": "Scanning reveals tags, slots, and rewrite costs.",
-  "当前只知道对象轮廓。先执行“扫描”，再决定剥离、注入或攻击。": "Only the object's outline is known. Scan it before extracting, injecting, or attacking.",
-  "点选目标身上的词缀可查看剥离预览；点选词库词缀可查看写入预览。": "Select a tag on the target to preview extraction, or a lexicon tag to preview injection.",
-  "打开被封住的庭院入口。": "Open the sealed courtyard entrance.",
-  "让石块先移动，再让机关获得足够重量。": "Move the block first, then restore enough weight to trigger the plate.",
-  "清理断廊游兵，观察防御状态怎么影响伤害。": "Clear the corridor patrol and observe how defensive semantics change damage.",
-  "解除冰封，并利用环境反应改变战斗局面。": "Break the freeze and use environmental reactions to reshape combat.",
-  "让碎片按正确方向移动，形成临时桥面。": "Move the debris in the right directions to form a temporary bridge.",
-  "逐层拆开守卫护文，再处理裸露核心。": "Counter each ward layer, then rewrite the exposed core.",
-  "查看切片结果并复盘本轮路径。": "Review the slice and your route.",
-  "从裂纹石像剥离“脆弱”，注入封文大门，再用重击破门。": "Extract “Fragile” from the Cracked Statue, inject it into the Sealed Gate, then break through with a heavy strike.",
-  "把压机关石变轻后推到机关板，再恢复沉重压住机关。": "Make the Pressure Block lightweight, move it onto the plate, then restore Heavy to hold the mechanism down.",
-  "通过弹反或重击打开语义破绽，剥离坚固或注入脆弱击败游兵。": "Open a semantic breach with a parry or heavy strike, then remove Solid or inject Fragile to defeat the patrol.",
-  "用过热解除冰封，再把过热与潮湿组合成蒸汽爆发。": "Use Overheated to thaw the lift, then combine Overheated and Wet to trigger Steam Burst.",
-  "用吸引聚拢碎片，再用排斥推入锚点形成桥面。": "Gather debris with Attract, then push it into the anchors with Repel—or discover a semantic shortcut.",
-  "用环境词缀削掉三层护文，结构槽开放后注入脆弱并重击核心。": "Counter three ward layers with environmental tags, then inject Fragile into the exposed Structure Slot and strike the core.",
-  "切片完成。这里只展示后期系统伏笔，不解锁新机制。": "Slice complete. This threshold foreshadows later systems without introducing another rule.",
-  "第一段只验证最小闭环：看见词、取走词、写入词、看到世界变化。": "The opening teaches the smallest loop: read a word, take it, write it, and watch the world change.",
-  "质量词不能只像钥匙。轻盈负责移动，沉重负责产生压力。": "Mass tags are not keys: Lightweight enables movement, while Heavy creates pressure.",
-  "战斗里只显示关键槽位，避免玩家被数据库淹没。": "Combat exposes only meaningful slots so the player can reason instead of reading a database.",
-  "潮湿必须马上接上反应收益，否则它会被玩家误认为弱词。": "Wet needs an immediate reaction payoff or it will feel like a weak tag.",
-  "物理谜题必须少量关键碎片，失控时宁可重置，不靠玩家忍耐。": "Physical puzzles should use a few meaningful pieces and offer recovery instead of demanding patience.",
-  "Boss不是背词表考试。每阶段只问玩家一个问题：我该从环境取什么词反制它？": "The boss is not a vocabulary exam. Each phase asks one question: which environmental tag counters this ward?",
-  "结尾不再加新规则，让玩家带着刚建立的理解离开。": "The ending adds no new rule, letting the player leave with a clear mental model.",
-  "一笔破门": "One-Stroke Breach",
-  "质量回环": "Mass Loop",
-  "借势拆壳": "Turn the Shell",
-  "雾中火花": "Spark in the Mist",
-  "双路造桥": "Two-Path Bridge",
-  "三重校对": "Triple Revision",
-  "修正者": "The Reviser",
-  "不触发无效操作，完成第一次语义改写。": "Complete the first rewrite without an invalid action.",
-  "不触发无效操作，让同一石块先轻后重。": "Make the same block light, then heavy, without an invalid action.",
-  "至少完成一次弹反，并清理全部游兵。": "Land at least one parry and clear every patrol.",
-  "发现蒸汽爆发，并完成温室目标。": "Discover Steam Burst and complete the conservatory.",
-  "直接调度机关，或把相反力场写入碎片制造震荡。": "Operate the mechanism directly, or write opposing fields into the debris to create a pulse.",
-  "用三种不同反应拆完全部护文。": "Break every ward with three distinct reactions.",
-  "抵达文库并完成本轮复盘。": "Reach the archive and review the run.",
-  "温度与介质会彼此放大。": "Temperature and medium can amplify each other.",
-  "低温会让脆弱结构进一步开裂。": "Cold deepens cracks in fragile structures.",
-  "相反方向在同一目标上无法共存。": "Opposing directions cannot coexist on one target.",
-  "让不同槽位的词在同一目标上发生冲突。": "Create a conflict between different semantic slots on one target.",
-  "阻断通路或机关，需要替换结构词。": "Blocks a route or mechanism; replace its Structure tag.",
-  "让目标更难破坏，战斗中优先考虑剥离。": "Makes a target harder to break; consider extracting it in combat.",
-  "让结构更容易被重击破坏。": "Makes structures easier to destroy with heavy strikes.",
-  "增加重量，可压机关但移动困难。": "Adds weight: useful for plates, difficult to move.",
-  "降低重量，便于推动或击飞。": "Reduces weight, enabling movement and knockback.",
-  "提供热源，可融冰并触发蒸汽。": "Provides heat that can thaw ice and trigger steam.",
-  "冻结目标，也能制造破裂窗口。": "Freezes a target and can create a Fracture Window.",
-  "自身不强，主要用于和过热组合。": "Weak alone; primarily combines with Overheated.",
-  "把碎片或敌人拉向中心。": "Pulls debris or enemies toward the center.",
-  "把碎片或敌人推离中心。": "Pushes debris or enemies away from the center.",
-  "相反力场在碎片内部坍缩并弹开，桥面一次成形。": "Opposing fields collapse inside the debris and rebound, forming the bridge in one pulse.",
-  "触发组合反应：力场震荡。": "Reaction triggered: Field Pulse."
-};
-
-const EN_TERMS = {
-  "修正文库门槛": "Archive Threshold",
-  "残章中庭": "Fragment Courtyard",
-  "碎桥力场": "Broken Bridge Field",
-  "冻水温室": "Frozen Conservatory",
-  "断廊遭遇": "Broken Corridor",
-  "压机关庭": "Pressure Court",
-  "封文大门": "Sealed Gate",
-  "残章守卫": "Fragment Warden",
-  "裂纹石像": "Cracked Statue",
-  "压机关石": "Pressure Block",
-  "浮字碑": "Floating Glyph Tablet",
-  "地面机关": "Pressure Plate",
-  "字壳游兵A": "Shell Patrol A",
-  "字壳游兵B": "Shell Patrol B",
-  "冰封升降台": "Frozen Lift",
-  "冻结水池": "Frozen Pool",
-  "火盆": "Brazier",
-  "缀刺兽": "Glyphspine Beast",
-  "吸引力场柱": "Attraction Pillar",
-  "排斥力场柱": "Repulsion Pillar",
-  "桥面碎片": "Bridge Debris",
-  "潮湿水纹": "Wet Ripple",
-  "过热火盆": "Overheated Brazier",
-  "冻结残页": "Frozen Page",
-  "吸引残柱": "Attraction Remnant",
-  "排斥残柱": "Repulsion Remnant",
-  "裂纹石碑": "Cracked Tablet",
-  "未授权文库": "Unauthorized Archive",
-  "蒸汽爆发": "Steam Burst",
-  "破裂窗口": "Fracture Window",
-  "力场震荡": "Field Pulse",
-  "封闭": "Closed",
-  "坚固": "Solid",
-  "脆弱": "Fragile",
-  "沉重": "Heavy",
-  "轻盈": "Lightweight",
-  "过热": "Overheated",
-  "冻结": "Frozen",
-  "潮湿": "Wet",
-  "吸引": "Attract",
-  "排斥": "Repel",
-  "结构槽": "Structure Slot",
-  "质量槽": "Mass Slot",
-  "温度槽": "Temperature Slot",
-  "介质槽": "Medium Slot",
-  "力场槽": "Field Slot",
-  "石质对象": "Stone",
-  "火源": "Fire Source",
-  "力场柱": "Field Pillar",
-  "碎片": "Debris",
-  "升降台": "Lift",
-  "水体": "Water",
-  "敌人": "Enemy",
-  "门": "Door",
-  "机关": "Mechanism"
 };
 
 const TRADITIONAL_PHRASES = {
@@ -884,7 +735,7 @@ const TRADITIONAL_PHRASES = {
 const TRADITIONAL_CHARACTERS = {
   "语": "語", "义": "義", "词": "詞", "缀": "綴", "图": "圖", "谱": "譜", "区": "區", "时": "時",
   "过": "過", "冻": "凍", "湿": "濕", "轻": "輕", "场": "場", "桥": "橋", "残": "殘", "门": "門",
-  "开": "開", "关": "關", "闭": "閉", "进": "進", "达": "達", "锁": "鎖", "扫": "掃", "击": "擊",
+  "开": "開", "关": "關", "闭": "閉", "进": "進", "达": "達", "远": "遠", "锁": "鎖", "扫": "掃", "击": "擊",
   "弹": "彈", "离": "離", "显": "顯", "临": "臨", "库": "庫", "体": "體", "态": "態", "写": "寫",
   "这": "這", "个": "個", "为": "為", "与": "與", "并": "並", "将": "將", "让": "讓", "会": "會",
   "从": "從", "后": "後", "还": "還", "没": "沒", "经": "經", "对": "對", "应": "應", "动": "動",
@@ -899,60 +750,22 @@ const TRADITIONAL_CHARACTERS = {
   "强": "強", "组": "組", "载": "載", "欢": "歡", "来": "來", "寻": "尋", "变": "變", "观": "觀",
   "战": "戰", "斗": "鬥", "绽": "綻", "里": "裡", "证": "證", "环": "環", "见": "見", "标": "標",
   "补": "補", "报": "報", "告": "告", "择": "擇", "处": "處", "应": "應", "阶": "階", "续": "續",
-  "释": "釋", "览": "覽", "这": "這", "备": "備", "须": "須", "难": "難", "够": "夠", "绳": "繩"
+  "释": "釋", "览": "覽", "这": "這", "备": "備", "须": "須", "难": "難", "够": "夠", "绳": "繩",
+  "胜": "勝", "录": "錄", "坏": "壞", "规": "規", "简": "簡", "块": "塊", "练": "練", "获": "獲"
 };
 
+const traditionalPhrases = Object.entries(TRADITIONAL_PHRASES).sort((a, b) => b[0].length - a[0].length);
+let renderedLanguage = "";
 const i18nTextState = new WeakMap();
 const i18nAttributeState = new WeakMap();
 
 function toTraditional(source) {
   let output = source;
-  Object.entries(TRADITIONAL_PHRASES)
-    .sort((a, b) => b[0].length - a[0].length)
-    .forEach(([from, to]) => {
+  traditionalPhrases.forEach(([from, to]) => {
       output = output.split(from).join(to);
     });
   output = [...output].map((character) => TRADITIONAL_CHARACTERS[character] || character).join("");
   return output;
-}
-
-function toEnglish(source) {
-  if (EN_EXACT[source]) return EN_EXACT[source];
-  const patterns = [
-    [/^扫描到 (.+)：(.+)。$/, (_, objectName, tags) => `Scanned ${toEnglish(objectName)}: ${toEnglish(tags)}.`],
-    [/^向 (.+) 注入“(.+)”。$/, (_, objectName, tagLabel) => `Injected “${toEnglish(tagLabel)}” into ${toEnglish(objectName)}.`],
-    [/^剥离“(.+)”，收入临时词库。$/, (_, tagLabel) => `Extracted “${toEnglish(tagLabel)}” into the temporary lexicon.`],
-    [/^(.+) 被击败。$/, (_, objectName) => `${toEnglish(objectName)} defeated.`],
-    [/^进入 (Z\\d)：(.+)。原墨恢复少量，临时词库已归档。$/, (_, zoneId, zoneName) => `Entered ${zoneId}: ${toEnglish(zoneName)}. Ink partially restored; temporary tags archived.`],
-    [/^区域精通：(.+)。奖励 2 点原墨。$/, (_, label) => `Zone Mastery: ${toEnglish(label)}. Gained 2 Ink.`],
-    [/^消耗(\\d+)原墨(.+)$/, (_, cost, rest) => `Spend ${cost} Ink to ${toEnglish(rest)}`],
-    [/^本区试炼 · (.+)$/, (_, status) => `Zone Trial · ${toEnglish(status)}`],
-    [/^(.+) 次失误$/, (_, count) => `${count} mistakes`]
-  ];
-  for (const [pattern, format] of patterns) {
-    if (pattern.test(source)) return source.replace(pattern, format);
-  }
-  let output = source;
-  Object.entries(EN_EXACT)
-    .filter(([from]) => (
-      from.length > 1 &&
-      from.length <= 24 &&
-      !Object.keys(EN_TERMS).some((term) => term.includes(from))
-    ))
-    .sort((a, b) => b[0].length - a[0].length)
-    .forEach(([from, to]) => {
-      output = output.split(from).join(to);
-    });
-  Object.entries(EN_TERMS)
-    .sort((a, b) => b[0].length - a[0].length)
-    .forEach(([from, to]) => {
-      output = output.split(from).join(to);
-    });
-  output = output
-    .split("：").join(": ")
-    .split("，").join(", ")
-    .split("。").join(".");
-  return EN_EXACT[output] || output;
 }
 
 function localizeText(source) {
@@ -961,26 +774,30 @@ function localizeText(source) {
 }
 
 function setLanguage(language) {
-  if (!LANGUAGES[language] || state.language === language) return;
+  if (!Object.hasOwn(LANGUAGES, language) || state.language === language) return;
   state.language = language;
-  saveGameToLocal();
-  render();
+  saveAndRender();
 }
 
 function applyLanguageToDocument() {
   const language = LANGUAGES[state.language] || LANGUAGES["zh-Hans"];
-  if (document.documentElement) document.documentElement.lang = language.htmlLang;
-  document.title = language.title;
-  document.querySelectorAll("[data-language]").forEach((button) => {
-    const active = button.dataset.language === state.language;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
+  const languageChanged = renderedLanguage !== state.language;
+  if (languageChanged) {
+    if (document.documentElement) document.documentElement.lang = language.htmlLang;
+    document.title = language.title;
+    document.querySelectorAll("[data-language]").forEach((button) => {
+      const active = button.dataset.language === state.language;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    renderedLanguage = state.language;
+  }
+  if (state.language === "zh-Hans" && !languageChanged) return;
   if (!document.createTreeWalker || typeof NodeFilter === "undefined") return;
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   let node = walker.nextNode();
   while (node) {
-    if (!["SCRIPT", "STYLE"].includes(node.parentElement?.tagName)) {
+    if (!["SCRIPT", "STYLE"].includes(node.parentElement?.tagName) && node.nodeValue.trim()) {
       const current = node.nodeValue;
       const previous = i18nTextState.get(node);
       const source = !previous || current !== previous.rendered ? current : previous.source;
@@ -988,7 +805,7 @@ function applyLanguageToDocument() {
       const trailing = source.match(/\\s*$/)?.[0] || "";
       const core = source.trim();
       const rendered = core ? `${leading}${localizeText(core)}${trailing}` : source;
-      node.nodeValue = rendered;
+      if (current !== rendered) node.nodeValue = rendered;
       i18nTextState.set(node, { source, rendered });
     }
     node = walker.nextNode();
@@ -1002,7 +819,7 @@ function applyLanguageToDocument() {
       const previous = prior[attribute];
       const source = !previous || current !== previous.rendered ? current : previous.source;
       const rendered = localizeText(source);
-      element.setAttribute(attribute, rendered);
+      if (current !== rendered) element.setAttribute(attribute, rendered);
       next[attribute] = { source, rendered };
     });
     i18nAttributeState.set(element, next);
@@ -1161,6 +978,7 @@ const state = {
   lastFeedback: null,
   unlockedZones: ["Z1"],
   completionSfxPlayed: false,
+  storageConflict: false,
   theme: "light",
   language: "zh-Hans",
   chronicleExpanded: false,
@@ -1178,6 +996,9 @@ const el = {
   zoneList: document.getElementById("zoneList"),
   zoneTitle: document.getElementById("zoneTitle"),
   zoneObjective: document.getElementById("zoneObjective"),
+  stageHero: document.getElementById("stageHero"),
+  stageRunStatus: document.getElementById("stageRunStatus"),
+  sceneCount: document.getElementById("sceneCount"),
   nextHint: document.getElementById("nextHint"),
   resultPulse: document.getElementById("resultPulse"),
   decisionStrip: document.getElementById("decisionStrip"),
@@ -1185,6 +1006,8 @@ const el = {
   sceneMap: document.getElementById("sceneMap"),
   contextActions: document.getElementById("contextActions"),
   actionHelp: document.getElementById("actionHelp"),
+  tacticalDeck: document.getElementById("tacticalDeck"),
+  inspectorActions: document.getElementById("inspectorActions"),
   selectedHint: document.getElementById("selectedHint"),
   inspector: document.getElementById("inspector"),
   inventoryList: document.getElementById("inventoryList"),
@@ -1208,7 +1031,9 @@ const el = {
   themeToggleBtn: document.getElementById("themeToggleBtn"),
   travelMapBtn: document.getElementById("travelMapBtn"),
   mapBackdrop: document.getElementById("mapBackdrop"),
+  inspectorBackdrop: document.getElementById("inspectorBackdrop"),
   toggleLogsBtn: document.getElementById("toggleLogsBtn"),
+  closeLogsBtn: document.getElementById("closeLogsBtn"),
   closeTravelBtn: document.getElementById("closeTravelBtn"),
   closeInspectorBtn: document.getElementById("closeInspectorBtn"),
   zonePanel: document.querySelector(".zone-panel"),
@@ -1228,6 +1053,23 @@ function injectCost(definition) {
   return PROGRESSION.injectCost(definition?.inject ?? 0, state.run);
 }
 
+function inkForRewrites(tagIds) {
+  return tagIds.reduce((cost, id) => cost + extractCost(tag(id)) + injectCost(tag(id)), 0);
+}
+
+function restoreInk(bonus, minimum = 0) {
+  const previous = state.ink;
+  state.ink = Math.min(state.maxInk, Math.max(state.ink + bonus, minimum));
+  return state.ink - previous;
+}
+
+function minimumEntryInk(zoneId) {
+  if (zoneId === "Z2") return inkForRewrites(["Semantic.Mass.Light"]) + injectCost(tag("Semantic.Mass.Heavy"));
+  if (zoneId === "Z4") return inkForRewrites(["Semantic.Temperature.Overheated", "Semantic.Medium.Wet"]);
+  if (zoneId === "Z6") return inkForRewrites(BOSS_COUNTERS[3].tags);
+  return 0;
+}
+
 function isExpedition() {
   return state.testMode === "expedition";
 }
@@ -1241,6 +1083,7 @@ function runIsFailed() {
 }
 
 function actionBlockedByRun() {
+  if (isCompleted()) return true;
   if (!runIsFailed()) return false;
   log("本轮远征已经崩解，请先重新整备。", "warn");
   render();
@@ -1265,8 +1108,6 @@ function advanceThreat(base, source) {
     state.run.threat = 35;
     log(`语义崩解吞噬了一层稳定度：剩余 ${state.run.integrity}/3。威胁回落，本轮仍可继续。`, "warn", "semantic-collapse");
   }
-  saveProfileToLocal();
-  saveGameToLocal();
 }
 
 function recoverThreatOnAdvance() {
@@ -1275,11 +1116,9 @@ function recoverThreatOnAdvance() {
 }
 
 function finalizeRunProgression() {
-  if (!isCompleted() || runIsFailed() || state.run.rewardClaimed) return 0;
+  if (!isCompleted() || state.testMode === "debug" || runIsFailed() || state.run.rewardClaimed) return 0;
   const result = PROGRESSION.applyCompletion(state.profile, state.run, currentAudit().score);
   state.run.lastReward = result.reward;
-  saveProfileToLocal();
-  saveGameToLocal();
   return result.reward;
 }
 
@@ -1291,9 +1130,8 @@ function buyChronicleUpgrade(upgradeId) {
   }
   state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
   state.ink = Math.min(state.maxInk, state.ink + (upgradeId === "inkwell" ? 2 : 0));
-  saveProfileToLocal();
   log(`铭文“${result.upgrade.name}”提升至 ${result.level} 级，消耗 ${result.cost} 枚回声残片。`, "good");
-  render();
+  saveAndRender();
 }
 
 function zone() {
@@ -1338,7 +1176,7 @@ function createSessionId() {
     String(time.getMinutes()).padStart(2, "0"),
     String(time.getSeconds()).padStart(2, "0")
   ].join("");
-  return `DUANJU-${stamp}`;
+  return `DUANJU-${stamp}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function createMetrics(testMode = "guided") {
@@ -1402,9 +1240,13 @@ function currentModeLabel() {
   return TEST_MODES[state.testMode] || state.testMode;
 }
 
+function runType(mode) {
+  return mode === "guided" || mode === "low" ? "standard" : mode;
+}
+
 function setTestMode(mode) {
-  if (!TEST_MODES[mode] || state.testMode === mode) return;
-  const changesRunType = mode === "expedition" || state.testMode === "expedition";
+  if (!Object.hasOwn(TEST_MODES, mode) || state.testMode === mode) return;
+  const changesRunType = runType(mode) !== runType(state.testMode);
   state.testMode = mode;
   if (changesRunType) return resetGame();
   state.metrics.testMode = mode;
@@ -1415,15 +1257,14 @@ function setTestMode(mode) {
     zone: zone().id
   });
   log(`测试模式切换为：${TEST_MODES[mode]}。`);
-  render();
+  saveAndRender();
 }
 
 function applyInitialModeFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const mode = params.get("mode");
-  const language = params.get("lang");
-  if (language) state.language = LANGUAGES[language] ? language : "zh-Hans";
-  if (!TEST_MODES[mode] || state.testMode === mode) return;
+  const mode = PAGE_PARAMS.get("mode");
+  const language = PAGE_PARAMS.get("lang");
+  if (language) state.language = Object.hasOwn(LANGUAGES, language) ? language : "zh-Hans";
+  if (!Object.hasOwn(TEST_MODES, mode) || state.testMode === mode) return;
   state.testMode = mode;
   state.run = PROGRESSION.createRun(state.profile, mode);
   state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
@@ -1465,8 +1306,7 @@ function activeZoneElapsedSec() {
   return Math.max(0, elapsedSeconds() - (state.metrics.zoneVisitStartSec ?? 0));
 }
 
-function reportSummary() {
-  const durations = zoneDurationsSnapshot();
+function reportSummary(durations = zoneDurationsSnapshot()) {
   const completedDurations = durations.filter((item) => item.outcome !== "active");
   const longestZone = durations.reduce((longest, item) => {
     if (!longest || item.durationSec > longest.durationSec) return item;
@@ -1543,8 +1383,7 @@ function failureLedger() {
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-Hans-CN"));
 }
 
-function experienceAudit() {
-  const summary = reportSummary();
+function experienceAudit(summary = reportSummary()) {
   const failureItems = failureLedger();
   const latestFailure = state.metrics.failureEvents[0] || null;
   const frictions = [];
@@ -1598,9 +1437,8 @@ function experienceAudit() {
   };
 }
 
-function playtestPackage() {
-  const summary = reportSummary();
-  const z5Duration = zoneDurationsSnapshot().find((item) => item.zone === "Z5")?.durationSec ?? 0;
+function playtestPackage(summary, zoneDurations) {
+  const z5Duration = zoneDurations.find((item) => item.zone === "Z5")?.durationSec ?? 0;
   const bossCounters = state.metrics.bossPhaseCounters.map((item) => ({
     reaction: item.reaction,
     label: reactionName(item.reaction),
@@ -1688,13 +1526,12 @@ function playtestObserverMarkdown(summary, z5Duration, bossCounters, risks) {
   ].join("\n");
 }
 
-function currentAudit() {
+function currentAudit(experience = experienceAudit()) {
   const mistakes = state.metrics.warnings + state.metrics.blockedActions;
   const reactionTypes = Object.values(state.metrics.reactionCounts).filter((count) => count > 0).length;
   const bossCounterTypes = new Set(state.metrics.bossPhaseCounters.map((item) => item.reaction)).size;
   const recovery = recoveryState();
   const risks = [...recovery.issues];
-  const experience = experienceAudit();
   const failedAssertions = state.metrics.routeAssertions.filter((item) => !item.passed);
   failedAssertions.forEach((item) => risks.push(`回归断言失败：${item.label}`));
   experience.frictions.slice(0, 2).forEach((item) => risks.push(item));
@@ -1735,7 +1572,7 @@ function log(message, type = "", category = "general") {
     ink: state.ink,
     inventoryCount: state.inventory.length
   };
-  if (type === "warn") state.metrics.warnings += 1;
+  if (type === "warn" && category !== "semantic-collapse") state.metrics.warnings += 1;
   if (type === "bad") {
     state.metrics.blockedActions += 1;
     state.metrics.failureCounts[category] = (state.metrics.failureCounts[category] || 0) + 1;
@@ -1763,30 +1600,26 @@ function semanticSnapshot(label) {
     label,
     zone: state.zone,
     ink: state.ink,
-    inventory: structuredClone(state.inventory),
+    inventory: [...state.inventory],
     selectedObjectId: state.selectedObjectId,
     selectedTagId: state.selectedTagId,
     selectedInventoryIndex: state.selectedInventoryIndex,
-    zones: state.zones.map((item) => ({
-      ...item,
-      objects: item.objects.map((objectItem) => structuredClone(objectItem))
-    })),
-    flags: structuredClone(state.flags)
+    objects: structuredClone(zoneObjects()),
+    flags: Object.fromEntries(Object.entries(state.flags).filter(([key]) => zoneFlagBelongsToCurrentZone(key)))
   };
 }
 
 function restoreSemanticSnapshot(snapshot) {
-  state.zone = snapshot.zone;
-  state.ink = snapshot.ink;
-  state.inventory = structuredClone(snapshot.inventory);
+  state.ink = Math.min(state.maxInk, snapshot.ink);
+  state.inventory = [...snapshot.inventory];
   state.selectedObjectId = snapshot.selectedObjectId;
   state.selectedTagId = snapshot.selectedTagId;
   state.selectedInventoryIndex = snapshot.selectedInventoryIndex;
-  state.zones = snapshot.zones.map((item) => ({
-    ...item,
-    objects: item.objects.map((objectItem) => structuredClone(objectItem))
-  }));
-  state.flags = structuredClone(snapshot.flags);
+  state.zones[state.zone].objects = structuredClone(snapshot.objects);
+  for (const flag of Object.keys(state.flags)) {
+    if (zoneFlagBelongsToCurrentZone(flag)) delete state.flags[flag];
+  }
+  Object.assign(state.flags, snapshot.flags);
 }
 
 function pushUndo(label) {
@@ -1799,9 +1632,14 @@ function saveZoneCheckpoint(label = `检查点 ${zone().id}`) {
   if (state.metrics) state.metrics.checkpointSaves += 1;
 }
 
+function canRestoreCheckpoint() {
+  const zoneId = zone().id;
+  return Boolean(state.checkpoints[zoneId] && state.unlockedZones.at(-1) === zoneId && !isCompleted() && !runIsFailed());
+}
+
 function restoreZoneCheckpoint() {
   const snapshot = state.checkpoints[zone().id];
-  if (!snapshot || isCompleted()) {
+  if (!canRestoreCheckpoint()) {
     log("当前区域没有可恢复的检查点。", "warn");
     render();
     return;
@@ -1811,11 +1649,11 @@ function restoreZoneCheckpoint() {
   state.metrics.checkpointRestores += 1;
   state.metrics.debugRecoveries += 1;
   log(`已回到${snapshot.label}。`, "warn");
-  render();
+  saveAndRender();
 }
 
 function canUndo() {
-  return state.undoStack.length > 0 && !isCompleted();
+  return state.undoStack.length > 0 && !isCompleted() && !runIsFailed();
 }
 
 function undoLastSemanticAction() {
@@ -1828,16 +1666,15 @@ function undoLastSemanticAction() {
   restoreSemanticSnapshot(snapshot);
   state.metrics.undoUses += 1;
   log(`已撤销：${snapshot.label}。`);
-  render();
+  saveAndRender();
 }
 
 function selectObject(id) {
   state.selectedObjectId = id;
   state.selectedTagId = null;
-  if (el.inspectorPanel && !document.body.classList.contains("regression-mode")) {
-    el.inspectorPanel.classList.add("open");
-  }
   render();
+  setInspectorOpen(true);
+  if (window.matchMedia?.("(max-width: 1080px)").matches) el.closeInspectorBtn?.focus?.({ preventScroll: true });
 }
 
 function scanSelected() {
@@ -1850,7 +1687,7 @@ function scanSelected() {
   audio.playSfx("scan");
   log(`扫描到 ${obj.name}：${obj.currentTags.map(tagName).join(" / ") || "无显性词缀"}。`, "good");
   advanceThreat(2, "扫描");
-  render();
+  saveAndRender();
 }
 
 function selectTag(tagId) {
@@ -1886,7 +1723,7 @@ function extractSelectedTag() {
   log(`剥离“${def.name}”，收入临时词库。`, "good");
   advanceThreat(4, "剥离");
   selectGuidedRecommendedTarget(obj.id);
-  render();
+  saveAndRender();
 }
 
 function selectInventory(index) {
@@ -1935,8 +1772,7 @@ function injectSelectedInventory() {
   if (collisionReaction) triggerReaction(obj, collisionReaction);
   resolveReactions(obj);
   advanceThreat(6, "注入");
-  saveGameToLocal();
-  render();
+  saveAndRender();
 }
 
 function applyImmediateEffects(obj, tagId) {
@@ -1962,15 +1798,8 @@ function applyImmediateEffects(obj, tagId) {
 }
 
 function resolveReactions(obj) {
-  const has = (id) => obj.currentTags.includes(id);
-  if (has("Semantic.Temperature.Overheated") && has("Semantic.Medium.Wet")) {
-    triggerReaction(obj, "Reaction.SteamBurst");
-  }
-  if (has("Semantic.Temperature.Frozen") && has("Semantic.Structure.Fragile")) {
-    triggerReaction(obj, "Reaction.FractureWindow");
-  }
-  if (has("Semantic.Field.Attract") && has("Semantic.Field.Repel")) {
-    triggerReaction(obj, "Reaction.FieldPulse");
+  for (const reaction of REACTION_DISCOVERIES) {
+    if (reaction.tags.every((id) => hasTag(obj, id))) triggerReaction(obj, `Reaction.${reaction.key}`);
   }
 }
 
@@ -1978,6 +1807,14 @@ function applyReactionHpDamage(obj, amount) {
   if (!obj.hp) return;
   const floor = obj.id === "warden" && !obj.defeated ? 1 : 0;
   obj.hp = Math.max(floor, obj.hp - amount);
+  if (obj.hp === 0) defeatObject(obj);
+}
+
+function defeatObject(obj) {
+  obj.defeated = true;
+  if (obj.id === "warden") state.flags.bossDefeated = true;
+  audio.playSfx("success");
+  log(`${obj.name} 被击败。`, "good");
 }
 
 function triggerReaction(obj, reactionId) {
@@ -1989,7 +1826,7 @@ function triggerReaction(obj, reactionId) {
   state.metrics.reactionCounts[historyKey] += 1;
 
   if (reactionId === "Reaction.SteamBurst") {
-    state.flags.steamBurst = true;
+    if (zone().id === "Z4") state.flags.steamBurst = true;
     obj.currentTags = obj.currentTags.filter((id) => id !== "Semantic.Medium.Wet");
     applyReactionHpDamage(obj, 12);
     triggerVisualRipple(reactionId, obj.id);
@@ -2010,13 +1847,13 @@ function triggerReaction(obj, reactionId) {
   }
 
   if (reactionId === "Reaction.FieldPulse") {
-    state.flags.fieldPulse = true;
     applyReactionHpDamage(obj, 8);
     triggerVisualRipple(reactionId, obj.id);
     audio.playSfx("reaction");
     triggerScreenShake("medium");
     if (obj.id === "warden") reduceBossShield(obj, "力场震荡打散第三层护文。", reactionId);
     if (zone().id === "Z5" && obj.id === "debris") {
+      state.flags.fieldPulse = true;
       state.flags.debrisGathered = true;
       state.flags.bridgeFormed = true;
       log("相反力场在碎片内部坍缩并弹开，桥面一次成形。", "good", "alternate-route");
@@ -2028,22 +1865,22 @@ function triggerReaction(obj, reactionId) {
   return false;
 }
 
-function reduceBossShield(obj, reason, reactionId = "") {
+function reduceBossShield(obj, reason, reactionId) {
   if (obj.shieldLayers > 0) {
     const expectedCounter = bossExpectedCounter(obj);
-    if (reactionId && expectedCounter && expectedCounter !== reactionId) {
+    if (expectedCounter !== reactionId) {
       log(`当前护文不响应该反应，需要${reactionName(expectedCounter)}。`, "warn");
       return false;
     }
     obj.shieldLayers -= 1;
     state.metrics.bossPhaseCounters.push({
       layerAfter: obj.shieldLayers,
-      reaction: reactionId || "Direct",
+      reaction: reactionId,
       t: elapsedSeconds()
     });
-    state.ink = Math.min(state.maxInk, state.ink + 5);
+    const recovered = restoreInk(5, inkForRewrites(BOSS_COUNTERS[obj.shieldLayers].tags));
     log(reason, "good");
-    log("护文碎片回流，恢复5点原墨。", "good");
+    if (recovered > 0) log(`护文碎片回流，恢复 ${recovered} 点原墨。`, "good");
     if (obj.shieldLayers === 0) {
       obj.lockedSlots = obj.lockedSlots.filter((slot) => slot !== "Structure");
       log("残章守卫结构槽开放。", "good");
@@ -2074,8 +1911,7 @@ function heavyStrike() {
     triggerScreenShake("heavy");
     log("封文大门被击碎。", "good");
     advanceThreat(6, "重击");
-    saveGameToLocal();
-    return render();
+    return saveAndRender();
   }
   if (obj.hp != null && !obj.defeated) {
     let damage = 16;
@@ -2087,8 +1923,16 @@ function heavyStrike() {
       obj.fractureWindow = false;
       log("破裂窗口被重击引爆。", "good");
     }
-    obj.hp = Math.max(0, Math.round(obj.hp - damage));
     obj.breach = true;
+    if (obj.id === "warden" && hadFractureWindow && obj.shieldLayers > 0) {
+      const reduced = reduceBossShield(obj, "冻结裂隙被重击扩开，第二层护文破碎。", "Reaction.FractureWindow");
+      if (reduced) restoreBossGuardedStructure(obj);
+    }
+    const guardedCore = obj.id === "warden" && (obj.shieldLayers > 0 || !hasTag(obj, "Semantic.Structure.Fragile"));
+    const previousHp = obj.hp;
+    obj.hp = Math.max(guardedCore ? 1 : 0, Math.round(obj.hp - damage));
+    if (obj.id === "warden" && !guardedCore) obj.hp = 0;
+    damage = previousHp - obj.hp;
     
     // SFX and floating damage
     audio.playSfx("strike");
@@ -2096,22 +1940,10 @@ function heavyStrike() {
     triggerScreenShake(damage > 16 || hadFractureWindow ? "heavy" : "medium");
     
     log(`重击命中 ${obj.name}，造成 ${Math.round(damage)} 点伤害，并打开短暂破绽。`, "good");
-    if (obj.id === "warden" && hadFractureWindow && obj.shieldLayers > 0) {
-      const reduced = reduceBossShield(obj, "冻结裂隙被重击扩开，第二层护文破碎。", "Reaction.FractureWindow");
-      if (reduced) restoreBossGuardedStructure(obj);
-    }
-    if (obj.id === "warden" && obj.currentTags.includes("Semantic.Structure.Fragile") && obj.shieldLayers === 0) {
-      obj.hp = 0;
-    }
-    if (obj.hp === 0) {
-      obj.defeated = true;
-      audio.playSfx("success");
-      log(`${obj.name} 被击败。`, "good");
-      if (obj.id === "warden") state.flags.bossDefeated = true;
-    }
+    if (guardedCore && obj.hp === 1) log("护文仍在保护核心：完成反制，写入脆弱后再重击。", "warn", "boss-core-guarded");
+    if (obj.hp === 0) defeatObject(obj);
     advanceThreat(6, "重击");
-    saveGameToLocal();
-    return render();
+    return saveAndRender();
   }
   audio.playSfx("error");
   log("重击没有产生关键效果。", "warn");
@@ -2130,8 +1962,7 @@ function parry() {
   triggerScreenShake("medium");
   log(`完美弹反 ${obj.name}，语义破绽打开。`, "good");
   advanceThreat(4, "弹反");
-  saveGameToLocal();
-  render();
+  saveAndRender();
 }
 
 function moveBlock() {
@@ -2142,7 +1973,7 @@ function moveBlock() {
   state.flags.blockMoved = true;
   log("压机关石被推到机关板上。", "good");
   advanceThreat(3, "推动机关");
-  render();
+  saveAndRender();
 }
 
 function pressPlate() {
@@ -2154,7 +1985,7 @@ function pressPlate() {
   state.flags.platePressed = true;
   log("机关板被压住，出口栅门打开。", "good");
   advanceThreat(3, "启动机关");
-  render();
+  saveAndRender();
 }
 
 function gatherDebris() {
@@ -2166,7 +1997,7 @@ function gatherDebris() {
   state.flags.debrisGathered = true;
   log("碎片被吸引到桥中央。", "good");
   advanceThreat(3, "聚拢碎片");
-  render();
+  saveAndRender();
 }
 
 function formBridge() {
@@ -2179,13 +2010,16 @@ function formBridge() {
   state.flags.bridgeFormed = true;
   log("碎片进入锚点，临时桥面形成。", "good");
   advanceThreat(3, "形成桥面");
-  render();
+  saveAndRender();
 }
 
 function nextZone() {
   if (actionBlockedByRun()) return;
   if (!zone().complete(state)) return log("当前目标还没完成。", "warn");
   if (isFinalZone()) return log("切片已经完成。", "good");
+  if (state.unlockedZones.includes(state.zones[state.zone + 1].id)) {
+    return travelToZone(state.zone + 1);
+  }
   awardZoneMastery();
   if (!state.metrics.zoneCompletions.some((item) => item.zone === zone().id)) {
     state.metrics.zoneCompletions.push({ zone: zone().id, t: elapsedSeconds() });
@@ -2198,7 +2032,7 @@ function nextZone() {
     state.selectedInventoryIndex = null;
     state.inventory = [];
     state.undoStack = [];
-    state.ink = Math.min(state.maxInk, state.ink + 4);
+    restoreInk(4, minimumEntryInk(zone().id));
     recoverThreatOnAdvance();
     
     // Unlock next zone in progression
@@ -2210,13 +2044,38 @@ function nextZone() {
     const zoneId = zone().id;
     state.metrics.zoneVisits[zoneId] = (state.metrics.zoneVisits[zoneId] || 0) + 1;
     state.mastery.zoneMistakeBaseline[zoneId] = state.metrics.warnings + state.metrics.blockedActions;
-    if (isFinalZone()) state.metrics.completedAt = state.metrics.completedAt ?? elapsedSeconds();
+    if (isFinalZone()) {
+      state.metrics.completedAt = elapsedSeconds();
+      finalizeRunProgression();
+    }
     saveZoneCheckpoint(`${zone().id}入口检查点`);
+    setInspectorOpen(false);
     audio.playSfx("success");
     log(`进入 ${zone().id}：${zone().name}。原墨恢复少量，临时词库已归档。`, "good");
-    saveGameToLocal();
-    render();
+    saveAndRender();
   }
+}
+
+function canTravelToZone(index) {
+  return index === state.zone || state.unlockedZones.includes(state.zones[index].id) ||
+    (index === state.zone + 1 && !runIsFailed() && zone().complete(state));
+}
+
+function travelToZone(index) {
+  if (!canTravelToZone(index) || index === state.zone) return;
+  if (!state.unlockedZones.includes(state.zones[index].id)) return nextZone();
+  if (!isCompleted()) recordZoneDuration("manual-switch");
+  state.zone = index;
+  state.selectedObjectId = null;
+  state.selectedTagId = null;
+  state.selectedInventoryIndex = null;
+  state.undoStack = [];
+  setInspectorOpen(false);
+  if (!isCompleted()) {
+    state.metrics.zoneVisits[zone().id] = (state.metrics.zoneVisits[zone().id] || 0) + 1;
+    state.metrics.zoneVisitStartSec = elapsedSeconds();
+  }
+  saveAndRender();
 }
 
 function resetGame() {
@@ -2233,6 +2092,7 @@ function resetGame() {
   state.selectedInventoryIndex = null;
   state.zones = freshZones();
   state.flags = {};
+  state.unlockedZones = ["Z1"];
   state.metrics = createMetrics(mode);
   state.undoStack = [];
   state.checkpoints = {};
@@ -2243,19 +2103,22 @@ function resetGame() {
   state.log = [];
   state.lastFeedback = null;
   state.completionSfxPlayed = false;
+  setInspectorOpen(false);
   log("原型已重置。", "good");
   saveZoneCheckpoint("Z1入口检查点");
-  render();
+  saveAndRender();
 }
 
 function refillInk() {
+  if (actionBlockedByRun()) return;
   state.ink = state.maxInk;
   state.metrics.debugRecoveries += 1;
   log("测试工具：原墨已补满。", "warn");
-  render();
+  saveAndRender();
 }
 
 function resetCurrentZone() {
+  if (actionBlockedByRun()) return;
   const zoneIndex = state.zone;
   recordZoneDuration("reset");
   state.zones[zoneIndex] = {
@@ -2274,7 +2137,7 @@ function resetCurrentZone() {
   state.metrics.zoneVisitStartSec = elapsedSeconds();
   saveZoneCheckpoint(`${zone().id}重置检查点`);
   log(`测试工具：${zone().id} 已重置。`, "warn");
-  render();
+  saveAndRender();
 }
 
 function zoneFlagBelongsToCurrentZone(key) {
@@ -2329,38 +2192,19 @@ function canTakeVisibleTag(obj, tagId) {
 }
 
 function reactionName(reactionId) {
-  return {
-    "Reaction.SteamBurst": "蒸汽爆发",
-    "Reaction.FractureWindow": "破裂窗口",
-    "Reaction.FieldPulse": "力场震荡"
-  }[reactionId] || reactionId;
+  return REACTION_DISCOVERIES.find((item) => `Reaction.${item.key}` === reactionId)?.name || reactionId;
 }
 
 function reactionMetricKey(reactionId) {
-  return {
-    "Reaction.SteamBurst": "SteamBurst",
-    "Reaction.FractureWindow": "FractureWindow",
-    "Reaction.FieldPulse": "FieldPulse"
-  }[reactionId] || reactionId;
+  return reactionId.replace(/^Reaction\./, "");
 }
 
 function bossExpectedCounter(obj = objectById("warden")) {
-  if (!obj || obj.id !== "warden" || obj.shieldLayers <= 0) return "";
-  return {
-    3: "Reaction.SteamBurst",
-    2: "Reaction.FractureWindow",
-    1: "Reaction.FieldPulse"
-  }[obj.shieldLayers] || "";
+  return obj?.id === "warden" ? BOSS_COUNTERS[obj.shieldLayers]?.reaction || "" : "";
 }
 
 function bossCounterHint(obj = objectById("warden")) {
-  const reactionId = bossExpectedCounter(obj);
-  if (!reactionId) return "结构槽开放，写入脆弱后重击核心。";
-  return {
-    "Reaction.SteamBurst": "第一层护文响应过热与潮湿。",
-    "Reaction.FractureWindow": "第二层护文需要冻结后写入脆弱，再用重击扩开裂隙。",
-    "Reaction.FieldPulse": "第三层护文需要让吸引和排斥在守卫身上相撞。"
-  }[reactionId];
+  return BOSS_COUNTERS[obj?.shieldLayers ?? 0].hint;
 }
 
 function bossAllowsPhaseStructureWrite(obj, tagId) {
@@ -2903,6 +2747,8 @@ function renderModeControls() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  el.refillInkBtn.classList.toggle("hidden", state.testMode !== "debug");
+  el.resetZoneBtn.classList.toggle("hidden", state.testMode !== "debug");
 }
 
 function renderStatusMeters() {
@@ -2963,27 +2809,27 @@ function recoveryState() {
 }
 
 function renderSessionStatus() {
-  const recovery = recoveryState();
-  el.sessionStatus.innerHTML = `
-    <div class="session-chip"><span>会话</span><strong>${state.sessionId}</strong></div>
-    <div class="session-chip"><span>模式</span><strong>${currentModeLabel()}</strong></div>
-    <div class="session-chip"><span>构建</span><strong>${BUILD_LABEL}</strong></div>
-    <div class="session-chip"><span>${isExpedition() ? "轮次" : "纪行"}</span><strong>${isExpedition() ? state.run.cycle : state.profile.completedRuns}</strong></div>
-    <div class="session-chip wide"><span>恢复建议</span><strong>${recovery.primary || "当前没有明显阻塞。"}</strong></div>
-  `;
+  const saveNotice = state.storageConflict ? "存档已在另一窗口更新。刷新页面可继续保存。" : "";
+  el.sessionStatus.classList.toggle("hidden", !saveNotice);
+  el.sessionStatus.textContent = saveNotice;
   el.undoBtn.disabled = !canUndo();
   el.undoBtn.title = canUndo() ? state.undoStack[0].label : "没有可撤销的语义操作。";
-  el.checkpointBtn.disabled = !state.checkpoints[zone().id] || isCompleted();
-  el.checkpointBtn.title = state.checkpoints[zone().id] ? "回到当前区域入口检查点。" : "当前区域没有检查点。";
+  el.checkpointBtn.disabled = !canRestoreCheckpoint();
+  el.checkpointBtn.title = el.checkpointBtn.disabled ? "检查点仅用于当前推进区域。" : "回到当前区域入口检查点。";
 }
 
 function renderChroniclePanel() {
   if (!el.chroniclePanel) return;
   const modifiers = PROGRESSION.modifierDetails(state.run);
   const cycle = isExpedition() ? state.run.cycle : state.profile.expeditionWins + 1;
-  const modifierHtml = modifiers.length
-    ? modifiers.map((item) => `<span class="modifier-chip" title="${item.detail}"><b>${item.icon}</b>${item.name}</span>`).join("")
-    : '<span class="modifier-chip calm"><b>○</b>标准规则</span>';
+  const mobileRulesOpen = el.chroniclePanel.querySelector(".mobile-modifiers")?.open;
+  const mobileRules = modifiers.length ? `
+    <details class="mobile-modifiers"${mobileRulesOpen ? " open" : ""}>
+      <summary>本轮规则</summary>
+      <div class="mobile-modifier-body">
+        ${modifiers.map((item) => `<div><strong>${item.icon} ${item.name}</strong><small>${item.detail}</small></div>`).join("")}
+      </div>
+    </details>` : "";
   const upgradeHtml = PROGRESSION.UPGRADES.map((upgrade) => {
     const level = state.profile.upgrades[upgrade.id] || 0;
     const maxed = level >= upgrade.maxLevel;
@@ -3012,9 +2858,7 @@ function renderChroniclePanel() {
   el.chroniclePanel.innerHTML = `
     <div class="chronicle-summary">
       <div class="chronicle-title">
-        <span class="label">长期纪行 · ${BUILD_LABEL}</span>
-        <strong>${isExpedition() ? `第 ${state.run.cycle} 轮远征` : "修正者档案"}</strong>
-        <small>${runIsFailed() ? "本轮稳定度耗尽，永久成长已保留。" : "完成轮次、积累残片、升级铭文，再挑战更高噪声。"}</small>
+        <h2>${isExpedition() ? `第 ${state.run.cycle} 轮远征` : "修正者档案"}</h2>
       </div>
       <div class="chronicle-stats">
         <span><small>回声残片</small><strong>${state.profile.echo} ◈</strong></span>
@@ -3033,13 +2877,16 @@ function renderChroniclePanel() {
         <span>稳定度 <strong>${isExpedition() ? `${state.run.integrity}/3` : "安全"}</strong></span>
       </div>
       <i><b style="width:${threat}%"></b></i>
-      <div class="modifier-list">${modifierHtml}</div>
+      ${mobileRules}
     </div>
     <div class="inscription-grid">${upgradeHtml}</div>
   `;
 }
 
 function render() {
+  const active = document.activeElement;
+  const focusAttribute = ["data-index", "data-object-id", "data-action", "data-tag", "data-zone", "data-chronicle-action", "data-upgrade", "data-completion-action"]
+    .find((attribute) => active?.hasAttribute(attribute));
   renderModeControls();
   ensureGuidedSelection();
   renderStatusMeters();
@@ -3059,16 +2906,24 @@ function render() {
   renderInspector();
   renderInventory();
   renderLog();
-  renderMetrics();
+  const report = buildReport();
+  renderMetrics(report);
   renderSessionStatus();
-  renderCompletionPanel();
+  renderCompletionPanel(report);
   el.reflectionBox.textContent = zone().reflection;
-  renderReportData();
+  renderReportData(report);
   applyLanguageToDocument();
+  if (focusAttribute && !active.isConnected) {
+    const equivalent = document.querySelector(`button[${focusAttribute}="${CSS.escape(active.getAttribute(focusAttribute))}"]:enabled`);
+    const nextAction = el.contextActions.querySelector("button:enabled");
+    const nextTag = el.inspector.querySelector(".tag-chip:enabled");
+    (equivalent || nextTag || nextAction)?.focus({ preventScroll: true });
+  }
 }
 
 function renderMasteryPanel() {
   if (!el.masteryPanel) return;
+  el.masteryPanel.classList.toggle("awaiting-first-scan", zone().id === "Z1" && state.metrics.scans === 0);
   const zoneId = zone().id;
   const challenge = ZONE_MASTERY[zoneId];
   const earned = Boolean(state.mastery.earned[zoneId]);
@@ -3077,7 +2932,7 @@ function renderMasteryPanel() {
     const discovered = state.metrics.reactionCounts[item.key] > 0;
     const name = discovered ? item.name : "未解析共鸣";
     const detail = discovered
-      ? item.formula
+      ? item.tags.map(tagName).join(" + ")
       : state.testMode === "guided"
         ? item.clue
         : "让不同槽位的词在同一目标上发生冲突。";
@@ -3131,7 +2986,7 @@ function renderResultPulse() {
   el.resultPulse.className = `result-pulse ${tone}`;
   el.resultPulse.innerHTML = `
     <span>${titleMap[tone]}</span>
-    <strong>${feedback.message}</strong>
+    <strong>${escapeHtml(feedback.message)}</strong>
     <small>${detail}</small>
   `;
 }
@@ -3140,32 +2995,18 @@ function renderZones() {
   el.zoneList.innerHTML = "";
   state.zones.forEach((z, index) => {
     const active = index === state.zone;
-    const reached = index <= state.zone;
-    const complete = reached && (index < state.zone || z.complete(state));
+    const unlocked = state.unlockedZones.includes(z.id);
+    const complete = unlocked && (z.id === "Z7" ? isCompleted() : z.complete({ ...state, zone: index }));
     const button = document.createElement("button");
     button.className = `zone-item${active ? " active" : ""}${complete ? " complete" : ""}`;
     button.type = "button";
+    button.dataset.zone = z.id;
+    button.disabled = !canTravelToZone(index);
     button.style.setProperty("--zone-item-pct", `${index / Math.max(1, state.zones.length - 1) * 100}%`);
     button.innerHTML = `<strong>${z.id} ${z.name}</strong><span>${complete ? "已达成" : active ? "进行中" : "待进入"}</span><i></i>`;
     button.addEventListener("click", () => {
-      if (index <= state.zone || state.zones[index - 1]?.complete(state)) {
-        if (index !== state.zone) recordZoneDuration("manual-switch");
-        state.zone = index;
-        state.selectedObjectId = null;
-        state.selectedTagId = null;
-        state.selectedInventoryIndex = null;
-        state.metrics.zoneVisits[zone().id] = (state.metrics.zoneVisits[zone().id] || 0) + 1;
-        state.metrics.zoneVisitStartSec = elapsedSeconds();
-        
-        // Auto-close travel modal
-        if (el.zonePanel && !document.body.classList.contains("regression-mode")) {
-          setMapOpen(false);
-        }
-        
-        render();
-      } else {
-        log("先完成前一区域。", "warn");
-      }
+      setMapOpen(false);
+      travelToZone(index);
     });
     el.zoneList.appendChild(button);
   });
@@ -3181,8 +3022,19 @@ function renderSteps() {
   }).join("");
 }
 
+function objectArtwork(obj) {
+  if (obj.id === "archive") return "archive";
+  if (obj.id === "statue") return "statue";
+  if (obj.id === "lift" || obj.id === "bossIce") return "ice";
+  return { Door: "gate", Water: "ice", FireSource: "fire", FieldPillar: "field", Boss: "guard", Enemy: "guard" }[obj.type] || "stone";
+}
+
 function renderStage() {
-  el.zoneTitle.textContent = `${zone().id} ${zone().name}`;
+  el.zoneTitle.textContent = zone().name;
+  el.stageHero.dataset.zone = zone().id;
+  el.stageRunStatus.classList.toggle("hidden", !isExpedition());
+  el.stageRunStatus.textContent = isExpedition() ? `远征 ${state.run.cycle} · 威胁 ${state.run.threat}/100 · 稳定度 ${state.run.integrity}/3` : "";
+  el.sceneCount.textContent = `${zoneObjects().length} 个对象`;
   el.zoneObjective.textContent = usesLowGuidance() ? (LOW_OBJECTIVES[zone().id] || zone().objective) : zone().objective;
   el.sceneMap.innerHTML = "";
   const recommendedIds = recommendedObjectIds();
@@ -3212,23 +3064,23 @@ function renderStage() {
     }).join("");
     const hp = obj.hp != null && !obj.defeated ? `<small>耐久 ${obj.hp}${obj.shieldLayers ? ` / 护文 ${obj.shieldLayers}` : ""}</small>` : "";
     const hpBar = obj.hp != null && !obj.defeated
-      ? `<div class="hp-bar" aria-label="耐久"><span style="width:${Math.max(0, Math.min(100, obj.hp / (obj.maxHp || obj.hp || 1) * 100))}%"></span></div>`
+      ? `<span class="hp-bar" aria-label="耐久"><span style="width:${Math.max(0, Math.min(100, obj.hp / (obj.maxHp || obj.hp || 1) * 100))}%"></span></span>`
       : "";
     const shieldPips = obj.shieldLayers != null && !obj.defeated
-      ? `<div class="shield-pips" aria-label="护文">${[0, 1, 2].map((pip) => `<i class="${pip < obj.shieldLayers ? "on" : ""}"></i>`).join("")}</div>`
+      ? `<span class="shield-pips" aria-label="护文">${[0, 1, 2].map((pip) => `<i class="${pip < obj.shieldLayers ? "on" : ""}"></i>`).join("")}</span>`
       : "";
     const stateLabel = objectStateLabel(obj, recommendedIds);
     button.setAttribute("aria-label", `${obj.name}，${objectTypeName(obj.type)}，${stateLabel}`);
     button.innerHTML = `
-      <div class="object-card-top">
+      <span class="object-art" data-art="${objectArtwork(obj)}" aria-hidden="true"></span>
+      <span class="object-info">
         <span class="type-badge">${objectTypeName(obj.type)}</span>
+        <strong>${obj.name}</strong>
         <span class="object-state">${stateLabel}</span>
-      </div>
-      <strong>${obj.name}</strong>
-      <small>${obj.scanned ? "已扫描" : "未扫描"}</small>
-      ${hp}${hpBar}${shieldPips}
-      <div class="mini-tags">${tags}</div>
-      <span class="glyph">${obj.glyph}</span>
+        <span class="sr-only">${obj.scanned ? "已扫描" : "未扫描"}</span>
+        ${hp}${hpBar}${shieldPips}
+        <span class="mini-tags">${tags}</span>
+      </span>
     `;
     button.addEventListener("click", () => selectObject(obj.id));
     el.sceneMap.appendChild(button);
@@ -3237,6 +3089,11 @@ function renderStage() {
 }
 
 function renderActions() {
+  if (isCompleted()) {
+    el.contextActions.innerHTML = "";
+    el.actionHelp.textContent = "本轮已完成。可在地图回看区域，或从通关总结开启下一轮。";
+    return;
+  }
   if (runIsFailed()) {
     el.contextActions.innerHTML = "";
     const restart = document.createElement("button");
@@ -3273,6 +3130,9 @@ function renderActions() {
   el.contextActions.innerHTML = "";
   const disabledReasons = [];
   const visibleActions = actions.filter((item) => shouldShowAction(item));
+  const preferred = visibleActions.find((item) => item.state.enabled && item.label === advanceLabel) ||
+    visibleActions.find((item) => item.state.enabled && item.cls === "primary") ||
+    visibleActions.find((item) => item.state.enabled);
   const groups = zone().id === "Z5"
     ? ["观察", "机关", "语义", "战斗", "推进"]
     : ["观察", "语义", "战斗", "机关", "推进"];
@@ -3281,10 +3141,9 @@ function renderActions() {
     if (!groupActions.length) return;
     const wrapper = document.createElement("div");
     wrapper.className = `action-group${groupActions.some((item) => item.state.enabled) ? " has-ready" : ""}`;
-    wrapper.innerHTML = `<span class="action-group-label">${group}</span>`;
-    groupActions.forEach(({ label, fn, cls, state: actionState }) => {
+    groupActions.forEach(({ label, fn, state: actionState }) => {
       const button = document.createElement("button");
-      button.className = `action-button ${cls}${actionState.enabled ? " ready" : ""}`;
+      button.className = `action-button${label === preferred?.label ? " primary" : ""}${actionState.enabled ? " ready" : ""}`;
       button.type = "button";
       button.textContent = label;
       button.dataset.action = label;
@@ -3306,10 +3165,12 @@ function renderActions() {
 }
 
 function shouldShowAction(item) {
+  if (item.group === "推进" && !item.state.enabled) return false;
+  if (item.group === "战斗" && !item.state.enabled && !zoneObjects().some((obj) => obj.hp != null)) return false;
   const anyScanned = zoneObjects().some((objectItem) => objectItem.scanned);
   const firstScanTeaching = state.testMode === "guided" && zone().id === "Z1" && !anyScanned;
   if (!firstScanTeaching) return true;
-  return item.label === "扫描" || item.group === "推进";
+  return item.label === "扫描";
 }
 
 function renderInspector() {
@@ -3383,12 +3244,13 @@ function renderInspector() {
 }
 
 function renderInventory() {
+  el.clearInventoryBtn.disabled = state.inventory.length === 0;
   el.inventoryList.innerHTML = "";
   if (!state.inventory.length) {
     el.inventoryList.innerHTML = `
       <div class="empty-state">
         <strong>词库为空</strong>
-        <span>${usesLowGuidance() ? "从对象取词后会显示在这里。" : "扫描推荐目标，点选词缀并剥离。下一步写入目标会在场景中高亮。"}</span>
+        <span>从对象剥离的词缀会收录在这里。</span>
       </div>
     `;
     return;
@@ -3432,15 +3294,14 @@ function inventoryRouteHint(tagId) {
 
 function renderLog() {
   el.eventLog.innerHTML = state.log.map((item) => `
-    <div class="event-line ${item.type}">
-      <span>${formatTime(item.t ?? 0)} / ${item.zone || zone().id}</span>
-      <strong>${item.message}</strong>
+    <div class="event-line ${escapeHtml(item.type)}">
+      <span>${formatTime(item.t ?? 0)} / ${escapeHtml(item.zone || zone().id)}</span>
+      <strong>${escapeHtml(item.message)}</strong>
     </div>
   `).join("") || "<span class='hint'>还没有事件。</span>";
 }
 
-function renderMetrics() {
-  const report = buildReport();
+function renderMetrics(report) {
   const completeHtml = report.completed
     ? `<div class="completion-report">切片完成：${formatTime(report.elapsedSec)}。Boss语义操作 ${report.metrics.bossSemanticActions} 次，组合反应 ${report.metrics.reactions} 次。</div>`
     : "";
@@ -3519,10 +3380,8 @@ function calculateEndingBadges(report) {
   return badges;
 }
 
-function renderCompletionPanel() {
+function renderCompletionPanel(report) {
   if (!el.completionPanel) return;
-  finalizeRunProgression();
-  const report = buildReport();
   if (!report.completed) {
     el.completionPanel.className = "completion-panel hidden";
     el.completionPanel.innerHTML = "";
@@ -3538,31 +3397,31 @@ function renderCompletionPanel() {
   const verdict = completionVerdict(report);
   const zoneRows = report.zoneDurations.map((item) => `
     <tr>
-      <td>${item.zone}</td>
-      <td>${item.mode}</td>
+      <td>${escapeHtml(item.zone)}</td>
+      <td>${escapeHtml(item.mode)}</td>
       <td><span class="duration-cell"><i style="width:${Math.max(4, item.durationSec / longestDuration * 100)}%"></i><b>${formatTime(item.durationSec)}</b></span></td>
-      <td>${item.outcome}</td>
+      <td>${escapeHtml(item.outcome)}</td>
     </tr>
   `).join("");
   const reactionRows = report.reactionLedger.map((item) => `<span>${item.label}<strong>${item.count}</strong></span>`).join("");
   const frictionRows = report.experience.frictions.length
-    ? report.experience.frictions.map((item) => `<li>${item}</li>`).join("")
+    ? report.experience.frictions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
     : "<li>本轮未记录明显体验摩擦。</li>";
   const fixRows = report.experience.nextFixes.length
     ? report.experience.nextFixes.map((item) => `<li>${item}</li>`).join("")
     : "<li>保持低引导真人复测。</li>";
   const failureRows = report.experience.failureLedger.length
-    ? report.experience.failureLedger.map((item) => `<span>${item.label}<strong>${item.count}</strong></span>`).join("")
+    ? report.experience.failureLedger.map((item) => `<span>${escapeHtml(item.label)}<strong>${item.count}</strong></span>`).join("")
     : "<span>无阻塞<strong>0</strong></span>";
   const playtestPrompts = report.playtest.comprehensionChecks
     .slice(0, 5)
     .map((item) => `<li><strong>${item.prompt}</strong><span>${item.pass}</span></li>`)
     .join("");
   const playtestRisks = report.playtest.risks.length
-    ? report.playtest.risks.map((item) => `<li>${item}</li>`).join("")
+    ? report.playtest.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
     : "<li>暂无自动风险信号，仍需真人复述确认理解质量。</li>";
   const auditRisks = report.audit.risks.length
-    ? report.audit.risks.map((item) => `<li>${item}</li>`).join("")
+    ? report.audit.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
     : "<li>未发现明显阻塞。</li>";
     
   const badges = calculateEndingBadges(report);
@@ -3602,7 +3461,7 @@ function renderCompletionPanel() {
     </div>
     
     <div class="completion-badges-section">
-      <p class="label" style="text-align:center; margin-bottom: 12px; font-weight:700;">获得异墨勋章 (Badges Earned)</p>
+      <p class="label">异墨勋章</p>
       <div class="ending-badge-list">${badgeHtml}</div>
     </div>
 
@@ -3645,12 +3504,6 @@ function renderCompletionPanel() {
       </div>
     </div>
     
-    <div class="pitch-container">
-      <h4>关注《语弦生态：创世纪》主线开发 / Add to Wishlist</h4>
-      <p>完整版将包含 5 大文明语系变迁、主谓宾句法因果闭环、实时流体物理模拟及更宏大的叙事修正冒险！</p>
-      <button class="wishlist-btn" onclick="window.open('https://github.com/Lunora-Gather/echo-string-genesis-prototype', '_blank')">🚀 关注项目开源库 / Wishlist</button>
-    </div>
-
     <table class="zone-summary-table">
       <thead><tr><th>区域</th><th>模式</th><th>耗时</th><th>结果</th></tr></thead>
       <tbody>${zoneRows}</tbody>
@@ -3671,13 +3524,18 @@ function completionVerdict(report) {
   return { tone: "bad", title: "需要复盘", detail: "误操作偏多，优先查看最长区域和最近事件，定位卡点。" };
 }
 
-function renderReportData() {
+function renderReportData(report = buildReport()) {
   if (!el.reportData) return;
-  el.reportData.textContent = JSON.stringify(buildReport(), null, 2);
+  el.reportData.textContent = JSON.stringify(report, null, 2);
+}
+
+function escapeHtml(value) {
+  const escapes = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
+  return String(value ?? "").replace(/[&<>"]/g, (character) => escapes[character]);
 }
 
 function metricHtml(label, value) {
-  return `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`;
+  return `<div class="metric"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
 function timeOrDash(value) {
@@ -3686,8 +3544,9 @@ function timeOrDash(value) {
 
 function buildReport() {
   const completed = isCompleted();
-  const summary = reportSummary();
   const zoneDurations = zoneDurationsSnapshot();
+  const summary = reportSummary(zoneDurations);
+  const experience = experienceAudit(summary);
   const report = {
     project: "Echo-String: Genesis",
     prototype: "Duanju Courtyard",
@@ -3710,8 +3569,8 @@ function buildReport() {
     metrics: structuredClone(state.metrics),
     zoneDurations,
     summary,
-    audit: currentAudit(),
-    experience: experienceAudit(),
+    audit: currentAudit(experience),
+    experience,
     failureLedger: failureLedger(),
     reactionLedger: reactionLedger(),
     recovery: recoveryState(),
@@ -3719,7 +3578,7 @@ function buildReport() {
     currentSteps: zoneSteps(),
     latestLog: state.log.map((item) => item.message)
   };
-  report.playtest = playtestPackage();
+  report.playtest = playtestPackage(summary, zoneDurations);
   return report;
 }
 
@@ -3753,19 +3612,14 @@ async function sharePlayableLink() {
 }
 
 function runShortcut(key) {
-  const normalized = key.toLowerCase();
-  const shortcutMap = {
-    s: scanSelected,
-    e: extractSelectedTag,
-    i: injectSelectedInventory,
-    h: heavyStrike,
-    p: parry,
-    n: nextZone
-  };
-  const fn = shortcutMap[normalized];
-  if (!fn) return;
+  const shortcutMap = { s: "扫描", e: "剥离选中词", i: "注入选中词", h: "重击", p: "弹反破绽", n: "进入下一区域" };
+  const actionName = shortcutMap[key.toLowerCase()];
+  if (!actionName) return false;
+  const button = el.contextActions.querySelector(`[data-action="${actionName}"]:enabled`);
+  if (!button) return false;
   state.metrics.shortcutsUsed += 1;
-  fn();
+  button.click();
+  return true;
 }
 
 function initSettings() {
@@ -3783,9 +3637,11 @@ function initSettings() {
     settingsBtn.addEventListener("click", () => {
       settingsPanel.classList.remove("hidden");
       renderSettingsZones();
+      closeSettingsBtn.focus?.();
     });
     closeSettingsBtn.addEventListener("click", () => {
       settingsPanel.classList.add("hidden");
+      settingsBtn.focus?.();
     });
   }
 
@@ -3807,23 +3663,11 @@ function initSettings() {
 
   if (resetSaveDataBtn) {
     resetSaveDataBtn.addEventListener("click", () => {
-      if (confirm("确定要清空本地存档吗？所有关卡进度将被重置。")) {
-        localStorage.removeItem(RUNTIME_CONFIG.saveKey);
-        localStorage.removeItem(RUNTIME_CONFIG.profileKey);
-        state.profile = PROGRESSION.createProfile();
-        state.testMode = "guided";
-        state.run = PROGRESSION.createRun(state.profile, state.testMode);
-        state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
-        state.zone = 0;
-        state.ink = state.maxInk;
-        state.inventory = [];
-        state.flags = {};
-        state.unlockedZones = ["Z1"];
-        state.zones = freshZones();
-        log("本地存档已清空。", "warn");
-        if (settingsPanel) settingsPanel.classList.add("hidden");
-        render();
-      }
+      if (!confirm(localizeText("清空本地存档会删除关卡进度、回声残片和永久铭文。确定清空？"))) return;
+      state.profile = PROGRESSION.createProfile();
+      state.testMode = "guided";
+      settingsPanel?.classList.add("hidden");
+      resetGame();
     });
   }
 }
@@ -3839,9 +3683,8 @@ function renderSettingsZones() {
   if (!container) return;
   container.innerHTML = "";
   
-  const unlocked = state.unlockedZones || ["Z1"];
   state.zones.forEach((z, index) => {
-    const isUnlocked = unlocked.includes(z.id) || index <= state.zone;
+    const isUnlocked = state.unlockedZones.includes(z.id);
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `settings-zone-btn ${isUnlocked ? "unlocked" : "locked"} ${index === state.zone ? "active" : ""}`;
@@ -3851,16 +3694,9 @@ function renderSettingsZones() {
     } else if (isUnlocked) {
       btn.addEventListener("click", () => {
         audio.playSfx("success");
-        recordZoneDuration("manual-switch");
-        state.zone = index;
-        state.selectedObjectId = null;
-        state.selectedTagId = null;
-        state.selectedInventoryIndex = null;
-        state.metrics.zoneVisits[zone().id] = (state.metrics.zoneVisits[zone().id] || 0) + 1;
-        state.metrics.zoneVisitStartSec = elapsedSeconds();
         const settingsPanel = document.getElementById("settingsPanel");
         if (settingsPanel) settingsPanel.classList.add("hidden");
-        render();
+        travelToZone(index);
       });
     } else {
       btn.className += " locked";
@@ -3877,13 +3713,8 @@ function initPrologue() {
   const overlay = document.getElementById("prologueOverlay");
   const startBtn = document.getElementById("startPrologueBtn");
   
-  const isRegression = (
-    window.__echoRuntimeIsTesting || 
-    new URLSearchParams(window.location.search).has("regression") || 
-    document.body?.dataset?.domClickMode
-  );
-
-  if (isRegression) {
+  if (resumedGame && overlay) overlay.classList.add("hidden");
+  if (isRegressionSession()) {
     if (overlay) overlay.classList.add("hidden");
     audio.isMuted = true;
     return;
@@ -3892,9 +3723,11 @@ function initPrologue() {
   if (startBtn && overlay) {
     startBtn.addEventListener("click", () => {
       overlay.classList.add("hidden");
+      el.contextActions.querySelector("button:enabled")?.focus({ preventScroll: true });
       audio.init();
       audio.playSfx("success");
     });
+    if (!resumedGame) startBtn.focus?.({ preventScroll: true });
   }
 }
 
@@ -3925,20 +3758,25 @@ if (el.chroniclePanel) {
 if (el.themeToggleBtn) {
   el.themeToggleBtn.addEventListener("click", () => {
     state.theme = state.theme === "light" ? "dark" : "light";
-    localStorage.setItem(THEME_PREFERENCE_KEY, state.theme);
+    try {
+      getGameStorage()?.setItem(THEME_PREFERENCE_KEY, state.theme);
+    } catch (error) {
+      console.warn("Theme preference save failed:", error);
+    }
     applyTheme();
-    saveGameToLocal();
+    applyLanguageToDocument();
     if (typeof audio !== "undefined" && audio.playSfx) {
       audio.playSfx("success");
     }
   });
 }
 el.clearInventoryBtn.addEventListener("click", () => {
+  if (actionBlockedByRun()) return;
   if (state.inventory.length) pushUndo("清空临时词库");
   state.inventory = [];
   state.selectedInventoryIndex = null;
   log("临时词库已清空。", "warn");
-  render();
+  saveAndRender();
 });
 el.refillInkBtn.addEventListener("click", refillInk);
 el.resetZoneBtn.addEventListener("click", resetCurrentZone);
@@ -3961,18 +3799,20 @@ el.completionPanel.addEventListener("click", (event) => {
   }
 });
 window.addEventListener("keydown", (event) => {
-  if (event.ctrlKey || event.metaKey || event.altKey) return;
-  if (["s", "e", "i", "h", "p", "n"].includes(event.key.toLowerCase())) {
-    event.preventDefault();
-    runShortcut(event.key);
-  }
+  if (event.defaultPrevented || event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.target?.closest?.("input, textarea, select, [contenteditable]")) return;
+  if (el.zonePanel?.classList.contains("open") || document.querySelector(".settings-panel:not(.hidden), .prologue-overlay:not(.hidden)")) return;
+  if (runShortcut(event.key)) event.preventDefault();
 });
 setInterval(() => {
   if (!isCompleted()) {
     el.elapsedValue.textContent = formatTime(elapsedSeconds());
-    renderMetrics();
-    renderReportData();
-    applyLanguageToDocument();
+    const report = buildReport();
+    if (el.bottomPanel?.classList.contains("open") || document.body.classList.contains("regression-mode")) {
+      renderMetrics(report);
+      applyLanguageToDocument();
+    }
+    renderReportData(report);
   }
 }, 1000);
 window.__echoRuntime = { state, el, BUILD_LABEL, TEST_MODES };
@@ -3996,13 +3836,14 @@ window.__echoString = {
 
 applyInitialModeFromUrl();
 loadGameFromLocal();
+if (resumedGame && finalizeRunProgression()) saveGameToLocal();
 initPrologue();
 initSettings();
 initLanguageControls();
 initLayoutInteractive();
-saveZoneCheckpoint("Z1入口检查点");
+if (!state.checkpoints[zone().id] && !isCompleted()) saveZoneCheckpoint();
 if (!state.log.length) {
-  log("选择封文大门或裂纹石像开始。", "good");
+  log("选择封文大门或裂纹石像开始。");
 }
 render();
 
@@ -4028,12 +3869,7 @@ if (typeof document !== "undefined") {
 function initLayoutInteractive() {
   if (typeof document === "undefined") return;
 
-  const isRegression = (
-    window.__echoRuntimeIsTesting || 
-    new URLSearchParams(window.location.search).has("regression") || 
-    document.body?.dataset?.domClickMode
-  );
-  if (isRegression) {
+  if (isRegressionSession()) {
     document.body.classList.add("regression-mode");
   }
 
@@ -4054,28 +3890,84 @@ function initLayoutInteractive() {
   }
 
   if (el.toggleLogsBtn && el.bottomPanel) {
-    el.toggleLogsBtn.addEventListener("click", () => {
-      el.bottomPanel.classList.toggle("open");
-    });
+    el.toggleLogsBtn.addEventListener("click", () => setLogsOpen(!el.bottomPanel.classList.contains("open")));
+    el.closeLogsBtn?.addEventListener("click", () => setLogsOpen(false));
   }
 
   if (el.closeInspectorBtn && el.inspectorPanel) {
     el.closeInspectorBtn.addEventListener("click", () => {
-      el.inspectorPanel.classList.remove("open");
+      setInspectorOpen(false);
+      el.sceneMap.querySelector("[aria-pressed=true]")?.focus();
     });
   }
+  el.inspectorBackdrop?.addEventListener("click", () => el.closeInspectorBtn.click());
+  window.matchMedia?.("(max-width: 1080px)").addEventListener("change", syncInspectorActions);
 
   document.addEventListener?.("keydown", (event) => {
-    if (event.key === "Escape" && el.zonePanel?.classList.contains("open")) {
-      setMapOpen(false);
-    }
+    const modal = document.querySelector('.settings-panel:not(.hidden), .prologue-overlay:not(.hidden)') ||
+      document.querySelector('.zone-panel.open, .inspector-panel[aria-modal="true"]');
+    if (event.key === "Tab" && modal) keepFocusInDialog(event, modal);
+    if (event.key !== "Escape") return;
+    if (modal?.id === "settingsPanel") document.getElementById("closeSettingsBtn").click();
+    else if (modal?.id === "zonePanel") setMapOpen(false);
+    else if (modal?.id === "inspectorPanel") el.closeInspectorBtn.click();
+    else if (!modal && el.bottomPanel?.classList.contains("open")) setLogsOpen(false);
   });
+}
+
+function keepFocusInDialog(event, dialog) {
+  const buttons = Array.from(dialog.querySelectorAll('button:enabled:not([tabindex="-1"]), input:enabled, summary'))
+    .filter((element) => element.getClientRects().length && getComputedStyle(element).visibility !== "hidden");
+  const current = buttons.indexOf(document.activeElement);
+  if (current === -1 || (event.shiftKey ? current === 0 : current === buttons.length - 1)) {
+    event.preventDefault();
+    buttons[event.shiftKey ? buttons.length - 1 : 0]?.focus();
+  }
+}
+
+function setLogsOpen(open) {
+  el.bottomPanel.classList.toggle("open", open);
+  el.toggleLogsBtn.setAttribute("aria-expanded", String(open));
+  if (open) {
+    renderMetrics(buildReport());
+    applyLanguageToDocument();
+    el.closeLogsBtn?.focus?.();
+  } else {
+    el.toggleLogsBtn.focus?.();
+  }
+}
+
+function setInspectorOpen(open) {
+  el.inspectorPanel?.classList.toggle("open", open);
+  syncInspectorActions();
+}
+
+function syncInspectorActions() {
+  if (!window.matchMedia) return;
+  const inInspector = window.matchMedia("(max-width: 1080px)").matches && el.inspectorPanel?.classList.contains("open");
+  el.inspectorBackdrop?.classList.toggle("open", inInspector);
+  el.inspectorBackdrop?.setAttribute("aria-hidden", String(!inInspector));
+  if (inInspector) {
+    el.inspectorPanel.setAttribute("role", "dialog");
+    el.inspectorPanel.setAttribute("aria-modal", "true");
+  } else {
+    el.inspectorPanel?.removeAttribute("role");
+    el.inspectorPanel?.removeAttribute("aria-modal");
+  }
+  if (inInspector && el.contextActions.parentElement !== el.inspectorActions) {
+    el.inspectorActions.append(el.contextActions, el.resultPulse, el.actionHelp);
+  } else if (!inInspector && el.contextActions.parentElement !== el.tacticalDeck) {
+    el.tacticalDeck.append(el.contextActions, el.resultPulse, el.actionHelp);
+  }
 }
 
 function setMapOpen(open) {
   if (!el.zonePanel) return;
   el.zonePanel.classList.toggle("open", open);
   el.mapBackdrop?.classList.toggle("open", open);
+  el.mapBackdrop?.setAttribute("aria-hidden", String(!open));
   document.body.classList.toggle("map-open", open);
   el.travelMapBtn?.setAttribute("aria-expanded", String(open));
+  if (open) el.closeTravelBtn?.focus?.();
+  else el.travelMapBtn?.focus?.();
 }

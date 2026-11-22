@@ -109,6 +109,8 @@ if (-not $node) {
     if ($LASTEXITCODE -eq 0) { Add-Pass "player path audit" } else { Add-Fail "player path audit failed" }
     & $node.Source ".\scripts\run_progression_regression.mjs" | Out-Null
     if ($LASTEXITCODE -eq 0) { Add-Pass "long-term progression regression" } else { Add-Fail "long-term progression regression failed" }
+    & $node.Source ".\scripts\run_persistence_regression.mjs" | Out-Null
+    if ($LASTEXITCODE -eq 0) { Add-Pass "persistence regression" } else { Add-Fail "persistence regression failed" }
   } finally {
     Pop-Location
   }
@@ -197,16 +199,14 @@ if ($Port -gt 0) {
   if ($node) {
     Push-Location $root
     try {
-      & $node.Source ".\scripts\run_dom_click_regression.mjs" $url "production\releases\1.1.1\dom_click_report.json" | Out-Null
+      & $node.Source ".\scripts\run_dom_click_regression.mjs" $url | Out-Null
       if ($LASTEXITCODE -eq 0) { Add-Pass "DOM click regression" } else { Add-Fail "DOM click regression failed" }
-      & $node.Source ".\scripts\run_visual_smoke.mjs" $url "production\releases\1.1.1\visual_smoke_report.json" | Out-Null
+      & $node.Source ".\scripts\run_visual_smoke.mjs" $url | Out-Null
       if ($LASTEXITCODE -eq 0) { Add-Pass "visual smoke" } else { Add-Fail "visual smoke failed" }
-      & $node.Source ".\scripts\write_ux_report.mjs" "production\releases\1.1.1\report.json" "production\releases\1.1.1\visibility_report.json" | Out-Null
-      if ($LASTEXITCODE -eq 0) { Add-Pass "1.1.1 report refreshed" } else { Add-Fail "1.1.1 report refresh failed" }
-      powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\summarize_report.ps1" -ReportPath "production\releases\1.1.1\report.json" -OutputPath "production\releases\1.1.1\summary.md" | Out-Null
-      if ($LASTEXITCODE -eq 0) { Add-Pass "1.1.1 summary refreshed" } else { Add-Fail "1.1.1 summary refresh failed" }
-      powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\aggregate_reports.ps1" -ReportGlob "production\releases" -OutputPath "production\report_comparison.md" | Out-Null
-      if ($LASTEXITCODE -eq 0) { Add-Pass "report comparison refreshed" } else { Add-Fail "report comparison refresh failed" }
+      & $node.Source ".\scripts\write_ux_report.mjs" | Out-Null
+      if ($LASTEXITCODE -eq 0) { Add-Pass "browser report refreshed" } else { Add-Fail "browser report refresh failed" }
+      & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File ".\scripts\summarize_report.ps1" -ReportPath "artifacts/browser/report.json" -OutputPath "artifacts/browser/summary.md" | Out-Null
+      if ($LASTEXITCODE -eq 0) { Add-Pass "browser summary refreshed" } else { Add-Fail "browser summary refresh failed" }
     } catch {
       Add-Fail "browser validation failed: $($_.Exception.Message)"
     } finally {

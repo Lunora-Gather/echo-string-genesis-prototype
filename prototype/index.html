@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="《语弦生态：创世纪》1.1.1 长期试玩版：扫描、剥离、注入语义，挑战递进远征并积累永久铭文。" />
-    <meta name="theme-color" content="#f3f0ea" />
+    <meta name="theme-color" content="#f3efe6" />
     <meta property="og:title" content="语弦生态：断句庭院" />
     <meta property="og:description" content="Echo-String: Genesis 1.1.1 Chronicle Expedition 长期试玩版。" />
     <meta property="og:type" content="website" />
@@ -12,62 +12,56 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=1.1.1-ui3" />
+    <link rel="stylesheet" href="./styles.css?v=1.1.1-courtyard" />
   </head>
   <body class="theme-light">
-    <!-- Screen Effects Overlay -->
-    <div class="screen-effects-overlay"></div>
     <!-- Narrative Prologue Overlay -->
-    <div id="prologueOverlay" class="prologue-overlay">
+    <div id="prologueOverlay" class="prologue-overlay" role="dialog" aria-modal="true" aria-labelledby="prologueTitle">
       <div class="prologue-box">
-        <span class="prologue-protocol">语义恢复协议 / 001</span>
+        <span class="prologue-protocol">语弦生态 · 创世纪</span>
         <div class="language-switch prologue-language-switch" aria-label="简繁切换">
           <button class="language-button active" type="button" data-language="zh-Hans">简</button>
           <button class="language-button" type="button" data-language="zh-Hant">繁</button>
         </div>
-        <div class="prologue-glitch-title">ECHO-STRING</div>
-        <p class="prologue-tagline">《语弦生态：创世纪》叙事恢复接口 v1.1.1</p>
+        <h2 id="prologueTitle" class="prologue-title">断句庭院</h2>
         <div class="prologue-content">
-          <p class="prologue-line">世界由原初作者写就，却在失去维护后分崩离析。</p>
-          <p class="prologue-line">“重词污染”与“语义冲突”正疯狂蚕食着仅存的物性规则。</p>
-          <p class="prologue-line">作为流淌着空白原墨的“异墨者 · 楷”，你将能够读取并修改物体的底层语义。</p>
-          <p class="prologue-line">请穿过故障的“断句庭院”，剥离、注入和重写代码，完成原初修复考验。</p>
-          <p class="prologue-line">点击下方按钮建立同步链路，重塑万物法则。</p>
+          <p>原初作者停笔后，庭院的物性逐渐失序。封闭的石门、冻结的水面，仍遵从刻在它们身上的语义。</p>
+          <p>你是异墨者「楷」。扫描对象，剥离词缀，再用原墨写入新的含义，为庭院打开一条路。</p>
         </div>
-        <button id="startPrologueBtn" class="prologue-btn" type="button">建立同步链路</button>
+        <button id="startPrologueBtn" class="prologue-btn" type="button">进入庭院 <span aria-hidden="true">↗</span></button>
       </div>
     </div>
 
     <!-- Settings Menu Overlay -->
-    <div id="settingsPanel" class="settings-panel hidden">
+    <div id="settingsPanel" class="settings-panel hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="settings-box">
         <div class="settings-header">
-          <h3>系统配置 (Settings)</h3>
-          <button id="closeSettingsBtn" class="close-settings-btn" type="button">&times;</button>
+          <h3 id="settingsTitle">系统配置</h3>
+          <button id="closeSettingsBtn" class="close-settings-btn" type="button" aria-label="关闭设置">&times;</button>
         </div>
         <div class="settings-body">
           <div class="setting-item">
-            <label for="bgmVolumeSlider">环境背景垫音 (Ambient BGM)</label>
+            <label for="bgmVolumeSlider">环境音量</label>
             <div class="slider-row">
               <input type="range" id="bgmVolumeSlider" min="0" max="100" value="50">
               <span id="bgmVolumeVal">50%</span>
             </div>
           </div>
           <div class="setting-item">
-            <label for="sfxVolumeSlider">系统交互音效 (System SFX)</label>
+            <label for="sfxVolumeSlider">操作音量</label>
             <div class="slider-row">
               <input type="range" id="sfxVolumeSlider" min="0" max="100" value="70">
               <span id="sfxVolumeVal">70%</span>
             </div>
           </div>
           <div class="setting-item">
-            <button id="resetSaveDataBtn" class="danger-button" type="button">清空本地存档 (Reset Save)</button>
+            <button id="resetSaveDataBtn" class="danger-button" type="button">清空本地存档</button>
           </div>
           <div class="setting-item">
-            <h4>快速旅行 (关卡直接跳转)</h4>
+            <h4>快速旅行</h4>
             <div id="settingsZoneSelect" class="settings-zone-select">
               <!-- Dynamically populated -->
             </div>
@@ -78,129 +72,141 @@
 
     <!-- VFX Floating Effects Container -->
     <div id="effectsContainer" class="effects-container"></div>
-    <button id="mapBackdrop" class="map-backdrop" type="button" aria-label="关闭地图"></button>
+    <button id="mapBackdrop" class="map-backdrop" type="button" tabindex="-1" aria-label="关闭地图" aria-hidden="true"></button>
+
+    <button id="inspectorBackdrop" class="inspector-backdrop" type="button" tabindex="-1" aria-label="关闭扫描器" aria-hidden="true"></button>
 
     <main class="app-shell">
       <header class="topbar">
         <div class="title-block">
-          <p class="eyebrow">Echo-String: Genesis / Chronicle Expedition</p>
-          <h1>断句庭院</h1>
-          <span class="build-pill">1.1.1 Chronicle Expedition</span>
-        </div>
-        <div class="topbar-controls">
-          <div class="topbar-controls-row">
-            <button id="travelMapBtn" class="theme-toggle-btn" type="button" aria-label="旅行地图" aria-expanded="false">🌐 地图</button>
-            <button id="toggleLogsBtn" class="theme-toggle-btn" type="button" aria-label="历史日志">📜 日志</button>
-            <button id="themeToggleBtn" class="theme-toggle-btn" type="button" aria-label="切换主题">☀️ 亮色</button>
-            <button id="settingsBtn" class="settings-toggle-btn" type="button" aria-label="游戏配置">⚙️ 配置</button>
-            <div class="mode-switch" aria-label="玩法模式">
-              <button class="mode-button active" type="button" data-mode="guided" data-testid="mode-guided" aria-pressed="true">引导</button>
-              <button class="mode-button" type="button" data-mode="low" data-testid="mode-low" aria-pressed="false">探索</button>
-              <button class="mode-button expedition-mode-button" type="button" data-mode="expedition" data-testid="mode-expedition" aria-pressed="false">远征</button>
-              <button class="mode-button" type="button" data-mode="debug" data-testid="mode-debug" aria-pressed="false">沙盒</button>
-            </div>
-            <div class="language-switch" aria-label="简繁切换">
-              <button class="language-button active" type="button" data-language="zh-Hans">简</button>
-              <button class="language-button" type="button" data-language="zh-Hant">繁</button>
-            </div>
-          </div>
-          <div class="status-strip" aria-label="玩家状态">
-            <div class="status-card ink-card">
-              <span>原墨</span>
-              <strong id="inkValue">12</strong>
-              <i class="status-meter"><b></b></i>
-            </div>
-            <div class="status-card inventory-card">
-              <span>词库</span>
-              <strong id="inventoryCount">0/3</strong>
-              <i class="status-meter"><b></b></i>
-            </div>
-            <div class="status-card zone-card">
-              <span>区域</span>
-              <strong id="zoneIndex">Z1</strong>
-              <i class="status-meter"><b></b></i>
-            </div>
-            <div class="status-card time-card">
-              <span>用时</span>
-              <strong id="elapsedValue">0:00</strong>
-              <i class="status-meter"><b></b></i>
-            </div>
-            <div class="status-card resonance-card">
-              <span>共鸣</span>
-              <strong id="resonanceValue">0/3</strong>
-              <i class="status-meter"><b></b></i>
-            </div>
+          <span class="brand-seal" aria-hidden="true">弦</span>
+          <div>
+            <p class="eyebrow">Echo-String: Genesis</p>
+            <h1>断句庭院</h1>
           </div>
         </div>
+        <nav class="toolbar" aria-label="庭院工具">
+          <button id="travelMapBtn" class="tool-button" type="button" aria-label="旅行地图" aria-controls="zonePanel" aria-expanded="false"><span aria-hidden="true" class="tool-icon map-icon"></span>地图</button>
+          <button id="toggleLogsBtn" class="tool-button" type="button" aria-label="历史日志" aria-controls="bottomPanel" aria-expanded="false"><span aria-hidden="true" class="tool-icon log-icon"></span>日志</button>
+          <button id="themeToggleBtn" class="tool-button theme-toggle-btn" type="button" aria-label="切换主题">亮色</button>
+          <button id="settingsBtn" class="tool-button" type="button" aria-label="游戏配置"><span aria-hidden="true" class="tool-icon settings-icon"></span>设置</button>
+        </nav>
       </header>
 
-      <section class="session-panel" aria-label="试玩会话状态">
+      <section class="playbar" aria-label="玩法与资源">
+        <div class="play-options">
+          <div class="mode-switch" role="group" aria-label="玩法模式">
+            <button class="mode-button active" type="button" data-mode="guided" data-testid="mode-guided" aria-pressed="true">引导</button>
+            <button class="mode-button" type="button" data-mode="low" data-testid="mode-low" aria-pressed="false">探索</button>
+            <button class="mode-button" type="button" data-mode="expedition" data-testid="mode-expedition" aria-pressed="false">远征</button>
+            <button class="mode-button" type="button" data-mode="debug" data-testid="mode-debug" aria-pressed="false">沙盒</button>
+          </div>
+          <div class="language-switch" role="group" aria-label="简繁切换">
+            <button class="language-button active" type="button" data-language="zh-Hans">简</button>
+            <button class="language-button" type="button" data-language="zh-Hant">繁</button>
+          </div>
+        </div>
+        <div class="status-strip" aria-label="玩家状态">
+          <div class="status-card ink-card"><span>原墨</span><strong id="inkValue">12</strong><i class="status-meter" aria-hidden="true"><b></b></i></div>
+          <div class="status-card inventory-card"><span>词库</span><strong id="inventoryCount">0/3</strong><i class="status-meter" aria-hidden="true"><b></b></i></div>
+          <div class="status-card resonance-card"><span>共鸣</span><strong id="resonanceValue">0/3</strong><i class="status-meter" aria-hidden="true"><b></b></i></div>
+          <div class="status-card time-card"><span>用时</span><strong id="elapsedValue">0:00</strong></div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <aside id="zonePanel" class="panel zone-panel" role="dialog" aria-modal="true" aria-labelledby="mapTitle">
+          <div class="panel-heading">
+            <h2 id="mapTitle">区域地图</h2>
+            <button id="closeTravelBtn" class="quiet-button" type="button" aria-label="关闭地图">关闭</button>
+          </div>
+          <div id="zoneList" class="zone-list"></div>
+          <button id="resetBtn" class="quiet-button" type="button">重开本轮</button>
+        </aside>
+
+        <section class="stage-panel" aria-labelledby="zoneTitle">
+          <header class="stage-hero" id="stageHero" data-zone="Z1">
+            <div class="stage-hero-content">
+              <div class="hero-meta"><span id="zoneIndex">Z1</span><i aria-hidden="true"></i><span>当前目标</span></div>
+              <h2 id="zoneTitle"></h2>
+              <p id="zoneObjective" class="objective"></p>
+              <p id="stageRunStatus" class="stage-run-status hidden"></p>
+            </div>
+            <div class="chapter-progress" aria-hidden="true"><b></b></div>
+          </header>
+          <div class="scene-board">
+            <div class="scene-heading">
+              <h3>场景对象</h3>
+              <span id="sceneCount" class="scene-count"></span>
+            </div>
+            <div id="sceneMap" class="scene-map" aria-label="场景对象"></div>
+          </div>
+          <div id="tacticalDeck" class="tactical-deck">
+            <div id="contextActions" class="context-actions"></div>
+            <div id="resultPulse" class="result-pulse" aria-live="polite"></div>
+            <div id="actionHelp" class="action-help"></div>
+          </div>
+        </section>
+
+        <aside id="inspectorPanel" class="panel inspector-panel" aria-labelledby="inspectorTitle">
+          <div class="panel-heading scanner-heading">
+            <div>
+              <h2 id="inspectorTitle">语义扫描器</h2>
+              <span id="selectedHint" class="hint">未选择对象</span>
+            </div>
+            <button id="closeInspectorBtn" class="quiet-button close-btn" type="button" aria-label="关闭扫描器">关闭</button>
+          </div>
+          <div class="inspector-scroll">
+            <div id="inspector" class="inspector-empty">选择场景对象后开始扫描。</div>
+            <div class="inventory">
+              <div class="panel-heading">
+                <h3>临时词库</h3>
+                <button id="clearInventoryBtn" class="quiet-button" type="button">清空</button>
+              </div>
+              <div id="inventoryList" class="inventory-list"></div>
+            </div>
+          </div>
+          <div id="inspectorActions" class="inspector-action-dock"></div>
+        </aside>
+      </section>
+
+      <section class="session-panel" aria-label="本轮操作">
         <div id="sessionStatus" class="session-status"></div>
         <div class="session-actions">
-          <button id="shareLinkBtn" class="quiet-button" type="button">分享</button>
           <button id="undoBtn" class="quiet-button" type="button">撤销</button>
           <button id="checkpointBtn" class="quiet-button" type="button">检查点</button>
           <button id="restartSessionBtn" class="quiet-button" type="button">重开本轮</button>
+          <button id="shareLinkBtn" class="quiet-button" type="button">分享</button>
         </div>
       </section>
 
-      <section id="chroniclePanel" class="chronicle-panel" aria-label="长期纪行与铭文成长"></section>
+      <section id="completionPanel" class="completion-panel" aria-label="通关总结"></section>
 
-      <section class="workspace">
-        <aside class="panel zone-panel">
-          <div class="panel-heading">
-            <span class="label">流程</span>
-            <div>
-              <button id="resetBtn" class="quiet-button" type="button">重置</button>
-              <button id="closeTravelBtn" class="quiet-button close-btn" type="button" aria-label="关闭地图">❌ 关闭</button>
-            </div>
-          </div>
-          <div id="zoneList" class="zone-list"></div>
-        </aside>
-
-        <section class="stage-panel">
-          <div class="tactical-deck">
-            <div class="stage-header">
-              <div>
-                <p class="label">当前目标</p>
-                <h2 id="zoneTitle"></h2>
-              </div>
-              <p id="zoneObjective" class="objective"></p>
-            </div>
-            <div id="masteryPanel" class="mastery-panel" aria-label="语义图谱与区域精通"></div>
-            <div class="guidance-strip">
-              <span class="label">下一步</span>
-              <strong id="nextHint">选择场景中的对象。</strong>
-            </div>
-            <div id="resultPulse" class="result-pulse" aria-live="polite"></div>
+      <div class="support-grid">
+        <details class="field-guide">
+          <summary>关卡笔记</summary>
+          <div class="field-guide-content">
+            <div class="guidance-strip"><span class="label">下一步</span><strong id="nextHint">选择场景中的对象。</strong></div>
             <div id="decisionStrip" class="decision-strip" aria-label="当前决策摘要"></div>
             <div id="stepList" class="step-list" aria-label="区域步骤"></div>
-            <div id="contextActions" class="context-actions"></div>
-            <div id="actionHelp" class="action-help"></div>
+            <div id="masteryPanel" class="mastery-panel" aria-label="语义图谱与区域精通"></div>
           </div>
-          <div id="sceneMap" class="scene-map" aria-label="场景对象"></div>
-        </section>
+        </details>
+        <section id="chroniclePanel" class="chronicle-panel" aria-label="长期纪行与铭文成长"></section>
+      </div>
 
-        <aside class="panel inspector-panel">
-          <div class="panel-heading">
-            <span class="label">扫描器</span>
-            <span id="selectedHint" class="hint">未选择对象</span>
-            <button id="closeInspectorBtn" class="quiet-button close-btn" type="button" aria-label="关闭扫描器">❌</button>
-          </div>
-          <div id="inspector" class="inspector-empty">
-            选择场景中的对象，然后扫描。
-          </div>
-          <div class="inventory">
-            <div class="panel-heading">
-              <span class="label">临时词库</span>
-              <button id="clearInventoryBtn" class="quiet-button" type="button">清空</button>
-            </div>
-            <div id="inventoryList" class="inventory-list"></div>
-          </div>
-        </aside>
-      </section>
+      <footer class="app-footer"><span>语弦生态 · 创世纪</span><span class="build-pill">1.1.1 Chronicle Expedition</span></footer>
 
-      <section class="bottom-panel">
+      <section id="bottomPanel" class="bottom-panel" aria-label="事件与指标">
+        <div class="panel-heading">
+          <span class="label">事件与指标</span>
+          <div class="tool-row">
+            <button id="refillInkBtn" class="quiet-button" type="button">补墨</button>
+            <button id="resetZoneBtn" class="quiet-button" type="button">重置区</button>
+            <button id="downloadReportBtn" class="quiet-button" type="button">报告</button>
+            <button id="closeLogsBtn" class="quiet-button" type="button" aria-label="关闭日志">关闭</button>
+          </div>
+        </div>
         <div class="log-panel">
           <p class="label">事件日志</p>
           <div id="eventLog" class="event-log"></div>
@@ -210,25 +216,17 @@
           <div id="reflectionBox" class="reflection-box"></div>
         </div>
         <div class="metrics-panel">
-          <div class="panel-heading">
-            <span class="label">试玩指标</span>
-            <div class="tool-row">
-              <button id="refillInkBtn" class="quiet-button" type="button">补墨</button>
-              <button id="resetZoneBtn" class="quiet-button" type="button">重置区</button>
-              <button id="downloadReportBtn" class="quiet-button" type="button">报告</button>
-            </div>
-          </div>
+          <p class="label">试玩指标</p>
           <div id="metricsBox" class="metrics-box"></div>
         </div>
       </section>
 
-      <section id="completionPanel" class="completion-panel" aria-label="通关总结"></section>
     </main>
 
     <script id="reportData" type="application/json"></script>
-    <script src="./core/runtime-config.js?v=1.1.1" defer></script>
-    <script src="./core/progression.js?v=1.1.1" defer></script>
-    <script src="./app.js?v=1.1.1-fn1" defer></script>
-    <script src="./regression.js?v=1.1.1" defer></script>
+    <script src="./core/runtime-config.js?v=1.1.1-schema3" defer></script>
+    <script src="./core/progression.js?v=1.1.1-fn2" defer></script>
+    <script src="./app.js?v=1.1.1-courtyard" defer></script>
+    <script src="./regression.js?v=1.1.1-fn2" defer></script>
   </body>
 </html>

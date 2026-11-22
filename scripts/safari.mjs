@@ -1,4 +1,4 @@
-import { Builder } from "selenium-webdriver";
+import { Builder, By } from "selenium-webdriver";
 import safari from "selenium-webdriver/safari.js";
 
 export async function openSafari(width, height) {
@@ -14,6 +14,7 @@ export async function openSafari(width, height) {
     return {
       goto: url => driver.get(url),
       evaluate: expression => driver.executeScript(`return (${expression});`),
+      click: async (selector) => (await driver.findElement(By.css(selector))).click(),
       screenshot: () => driver.takeScreenshot(), close
     };
   } catch (error) { await close(); throw error; }

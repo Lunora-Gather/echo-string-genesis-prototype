@@ -46,7 +46,7 @@ function routeAssert(label, condition) {
   if (!item.passed) throw new Error(`Route assertion failed: ${label}`);
 }
 
-function runRouteRegression(mode = "guided") {
+function runRouteRegression(mode = "guided", enterArchive = nextZone) {
   runtimeState.testMode = mode;
   resetGame();
 
@@ -104,7 +104,7 @@ function runRouteRegression(mode = "guided") {
   routeInject("warden", "Semantic.Structure.Fragile");
   heavyStrike();
   routeAssert("Z6 boss defeated with three counters", runtimeState.flags.bossDefeated && runtimeState.metrics.bossPhaseCounters.length === 3);
-  nextZone();
+  enterArchive();
 
   let report = buildReport();
   runtimeState.metrics.regressionRuns.push({ mode, completed: report.completed, t: elapsedSeconds() });
@@ -264,6 +264,12 @@ function runPlayerPathAudit() {
 
   resetGame();
   setRouteZone("Z6");
+  selectObject("warden");
+  for (let strike = 0; strike < 12; strike += 1) heavyStrike();
+  const guarded = objectById("warden");
+  check("Repeated heavy strikes cannot finish the shielded Boss", guarded.hp === 1 && guarded.shieldLayers === 3 && !zone().complete(runtimeState));
+  resetGame();
+  setRouteZone("Z6");
   routeExtract("bossFire", "Semantic.Temperature.Overheated");
   routeInject("warden", "Semantic.Temperature.Overheated");
   routeExtract("bossPool", "Semantic.Medium.Wet");
@@ -294,9 +300,8 @@ function runPlayerPathAudit() {
 }
 
 function maybeAutorunRegression() {
-  const params = new URLSearchParams(window.location.search);
-  const autorun = params.get("autorun");
-  if (!["guided-regression", "low-regression", "suite-regression"].includes(autorun)) return;
+  const autorun = PAGE_PARAMS.get("autorun");
+  if (!REGRESSION_AUTORUNS.includes(autorun)) return;
   window.setTimeout(() => {
     try {
       const result = autorun === "suite-regression"
@@ -323,13 +328,15 @@ function maybeAutorunRegression() {
 }
 
 
-Object.assign(window.__echoString, {
-  runGuidedRegression,
-  runLowGuidanceRegression,
-  runExpeditionRegression,
-  runRegressionSuite,
-  runFailureAudit,
-  runPlayerPathAudit
-});
+if (isRegressionSession()) {
+  Object.assign(window.__echoString, {
+    runGuidedRegression,
+    runLowGuidanceRegression,
+    runExpeditionRegression,
+    runRegressionSuite,
+    runFailureAudit,
+    runPlayerPathAudit
+  });
+}
 
 maybeAutorunRegression();

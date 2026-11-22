@@ -1,3 +1,4 @@
+import { runInContext } from "node:vm";
 import { loadAppContext, summarizeSuite } from "./app_vm_harness.mjs";
 
 const { context } = loadAppContext();
@@ -28,7 +29,24 @@ if (summary.expedition.collapses < 1) failures.push("expedition route should exe
 if (summary.expedition.bossCounters !== 3) failures.push("expedition boss counters expected 3");
 if (summary.expedition.reward <= 0 || summary.expedition.profileWins !== 1) failures.push("expedition completion did not advance profile");
 
+const modifierPairs = new Set();
+for (let cycle = 1; cycle <= 15; cycle += 1) {
+  const { context: cycleContext } = loadAppContext();
+  try {
+    const report = runInContext(`state.profile.expeditionWins = ${cycle - 1}; runExpeditionRegression();`, cycleContext);
+    if (report.run.modifiers.length === 2) modifierPairs.add([...report.run.modifiers].sort().join("+"));
+    if (!report.completed || report.run.integrity < 1 || report.metrics.bossPhaseCounters.length !== 3) {
+      failures.push(`expedition cycle ${cycle} cannot finish the planned route without upgrades`);
+    }
+  } catch (error) {
+    failures.push(`expedition cycle ${cycle}: ${error.message}`);
+  }
+}
+if (modifierPairs.size !== 6) failures.push(`expedition rotation exercised ${modifierPairs.size} of 6 modifier pairs`);
+
 if (failures.length) {
   console.error(failures.map((item) => `[FAIL] ${item}`).join("\n"));
   process.exit(1);
 }
+
+console.log(`Verified 15 expedition cycles without upgrades, covering all ${modifierPairs.size} modifier pairs.`);

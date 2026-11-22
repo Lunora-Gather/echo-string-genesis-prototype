@@ -12,6 +12,10 @@ function fail(message) {
   failures.push(message);
 }
 
+function compareList(actual, expected, label) {
+  if (JSON.stringify([...actual].sort()) !== JSON.stringify([...expected].sort())) fail(label);
+}
+
 const dataTagIds = new Set(tagsDoc.tags.map((item) => item.tagId));
 const appTagIds = new Set(app.tags.map((item) => item.id));
 for (const id of dataTagIds) {
@@ -29,6 +33,7 @@ for (const appTag of app.tags) {
   if (appTag.slot !== dataTag.slotType) fail(`tag slot drift: ${appTag.id}`);
   if (appTag.extract !== dataTag.extractCost) fail(`tag extract cost drift: ${appTag.id}`);
   if (appTag.inject !== dataTag.injectCost) fail(`tag inject cost drift: ${appTag.id}`);
+  compareList(appTag.compatible, dataTag.compatibleObjectTypes, `tag compatible types drift: ${appTag.id}`);
 }
 
 const allAppObjects = app.zones.flatMap((zone) => zone.objects.map((object) => ({ ...object, zone: zone.id })));
@@ -44,10 +49,26 @@ const missingDataNames = allAppObjects
   .filter((object) => !dataDisplayNames.has(object.name))
   .map((object) => `${object.zone}/${object.name}`);
 if (missingDataNames.length) fail(`app objects missing from data table: ${missingDataNames.join(", ")}`);
+for (const item of objectsDoc.objects) {
+  const object = allAppObjects.find(({ name }) => name === item.displayName);
+  if (!object) {
+    fail(`data table object missing from app: ${item.displayName}`);
+    continue;
+  }
+  if (object.type !== item.objectType) fail(`object type drift: ${item.displayName}`);
+  compareList(object.currentTags, item.defaultTags, `object default tags drift: ${item.displayName}`);
+  compareList(object.providesTags, item.providesTags, `object source tags drift: ${item.displayName}`);
+  compareList(object.openSlots, item.openSlots, `object open slots drift: ${item.displayName}`);
+  compareList(object.lockedSlots, item.lockedSlots, `object locked slots drift: ${item.displayName}`);
+}
 
-const reactionIds = new Set(reactionsDoc.reactions.map((item) => item.reactionId));
-for (const required of ["Reaction.SteamBurst", "Reaction.FractureWindow", "Reaction.FieldPulse"]) {
-  if (!reactionIds.has(required)) fail(`required reaction missing: ${required}`);
+const reactionIds = reactionsDoc.reactions.map((item) => item.reactionId);
+compareList(app.reactions.map(({ id }) => id), reactionIds, "reaction ids drift");
+for (const reaction of reactionsDoc.reactions) {
+  const rule = app.reactions.find(({ id }) => id === reaction.reactionId);
+  if (!rule) continue;
+  if (rule.name !== reaction.displayName) fail(`reaction display name drift: ${rule.id}`);
+  compareList(rule.tags, reaction.requiredTags, `reaction ingredients drift: ${rule.id}`);
 }
 
 if (app.build !== "1.1.1") fail(`app build expected 1.1.1, got ${app.build}`);
@@ -63,7 +84,7 @@ console.log(JSON.stringify({
   tags: app.tags.length,
   zones: app.zones.length,
   objects: allAppObjects.length,
-  reactions: reactionIds.size,
+  reactions: reactionIds.length,
   rollout: app.rollout.length,
   status: "passed"
 }, null, 2));

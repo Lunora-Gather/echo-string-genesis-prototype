@@ -60,7 +60,7 @@
   function normalizeLevels(levels = {}) {
     return Object.fromEntries(UPGRADES.map((upgrade) => [
       upgrade.id,
-      Math.min(upgrade.maxLevel, integer(levels[upgrade.id]))
+      Math.min(upgrade.maxLevel, integer(levels?.[upgrade.id]))
     ]));
   }
 
@@ -80,28 +80,30 @@
 
   function modifierIdsForCycle(cycle) {
     const safeCycle = Math.max(1, integer(cycle, 1));
-    const primary = MODIFIERS[(safeCycle - 1) % MODIFIERS.length].id;
+    const primaryIndex = (safeCycle - 1) % MODIFIERS.length;
+    const primary = MODIFIERS[primaryIndex].id;
     if (safeCycle < 4) return [primary];
-    const secondary = MODIFIERS[(safeCycle + 1) % MODIFIERS.length].id;
-    return primary === secondary ? [primary] : [primary, secondary];
+    const offset = 1 + Math.floor((safeCycle - 4) / MODIFIERS.length) % (MODIFIERS.length - 1);
+    const secondary = MODIFIERS[(primaryIndex + offset) % MODIFIERS.length].id;
+    return [primary, secondary];
   }
 
   function createRun(profile, mode = "guided", restored = null) {
     const expedition = mode === "expedition";
     const cycle = expedition ? Math.max(1, integer(restored?.cycle, profile.expeditionWins + 1)) : 0;
+    const failed = Boolean(expedition && restored?.failed);
+    const restoredModifiers = Array.isArray(restored?.modifiers)
+      ? [...new Set(restored.modifiers.filter((id) => MODIFIERS.some((item) => item.id === id)))]
+      : [];
     return {
       cycle,
-      threat: expedition ? Math.min(99, integer(restored?.threat)) : 0,
-      integrity: expedition ? Math.max(1, Math.min(3, integer(restored?.integrity, 3))) : 3,
+      threat: failed ? 100 : expedition ? Math.min(99, integer(restored?.threat)) : 0,
+      integrity: failed ? 0 : expedition ? Math.max(1, Math.min(3, integer(restored?.integrity, 3))) : 3,
       collapses: expedition ? integer(restored?.collapses) : 0,
-      failed: Boolean(expedition && restored?.failed),
+      failed,
       rewardClaimed: Boolean(restored?.rewardClaimed),
       lastReward: integer(restored?.lastReward),
-      modifiers: expedition
-        ? (Array.isArray(restored?.modifiers) && restored.modifiers.length
-          ? restored.modifiers.filter((id) => MODIFIERS.some((item) => item.id === id))
-          : modifierIdsForCycle(cycle))
-        : []
+      modifiers: expedition ? (restoredModifiers.length ? restoredModifiers : modifierIdsForCycle(cycle)) : []
     };
   }
 
@@ -131,7 +133,7 @@
   }
 
   function threatRecovery(run) {
-    return run?.modifiers?.includes("unstableRecovery") ? 8 : 20;
+    return run?.modifiers?.includes("unstableRecovery") ? 12 : 20;
   }
 
   function completionReward(profile, run, score = 0) {

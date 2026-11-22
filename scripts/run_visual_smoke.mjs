@@ -4,7 +4,8 @@ import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const APP_URL = process.argv[2] || "http://127.0.0.1:4174/index.html";
-const OUTPUT_PATH = process.argv[3] || "production/releases/1.1.1/visual_smoke_report.json";
+const OUTPUT_PATH = path.resolve(ROOT, process.argv[3] || "artifacts/browser/visual_smoke_report.json");
+const SCREENSHOT_DIR = path.join(path.dirname(OUTPUT_PATH), "screenshots");
 
 const scenarios = [
   {
@@ -13,7 +14,7 @@ const scenarios = [
     width: 1440,
     height: 960,
     mobile: false,
-    screenshot: "production/releases/1.1.1/screenshots/desktop-expedition.png"
+    screenshot: "desktop-expedition.png"
   },
   {
     name: "desktop-guided",
@@ -21,7 +22,7 @@ const scenarios = [
     width: 1280,
     height: 900,
     mobile: false,
-    screenshot: "production/releases/1.1.1/screenshots/desktop-guided.png"
+    screenshot: "desktop-guided.png"
   },
   {
     name: "mobile-low",
@@ -29,7 +30,7 @@ const scenarios = [
     width: 390,
     height: 844,
     mobile: true,
-    screenshot: "production/releases/1.1.1/screenshots/mobile-low.png"
+    screenshot: "mobile-low.png"
   },
   {
     name: "mobile-expedition",
@@ -37,7 +38,7 @@ const scenarios = [
     width: 390,
     height: 844,
     mobile: true,
-    screenshot: "production/releases/1.1.1/screenshots/mobile-expedition.png"
+    screenshot: "mobile-expedition.png"
   }
 ];
 
@@ -48,15 +49,11 @@ async function navigate(session, url) {
 }
 
 async function enterGame(session) {
-  const entered = await evalPage(session, `(() => {
-    const overlay = document.querySelector("#prologueOverlay");
-    if (!overlay || overlay.classList.contains("hidden")) return true;
-    const start = document.querySelector("#startPrologueBtn");
-    if (!start) return false;
-    start.click();
-    return overlay.classList.contains("hidden");
-  })()`);
-  if (!entered) throw new Error("Could not dismiss the prologue before visual capture.");
+  const entered = () => evalPage(session, 'document.querySelector("#prologueOverlay").classList.contains("hidden")');
+  for (let attempt = 0; attempt < 2 && !await entered(); attempt += 1) {
+    await session.click("#startPrologueBtn");
+  }
+  if (!await entered()) throw new Error("The start button did not dismiss the prologue.");
 }
 
 async function waitForReady(session) {
@@ -94,6 +91,15 @@ async function inspectPage(session, scenario) {
     const actionRect = action?.getBoundingClientRect();
     const firstObject = document.querySelector(".object-token");
     const firstObjectRect = firstObject?.getBoundingClientRect();
+    const canPressInViewport = (element, rect) => {
+      if (!rect || element.disabled) return false;
+      const left = Math.max(0, rect.left);
+      const right = Math.min(window.innerWidth, rect.right);
+      const top = Math.max(0, rect.top);
+      const bottom = Math.min(window.innerHeight, rect.bottom);
+      return right - left >= 24 && bottom - top >= 24 &&
+        element.contains(document.elementFromPoint((left + right) / 2, (top + bottom) / 2));
+    };
     const objectTokens = document.querySelectorAll(".object-token").length;
     const overflowX = Math.max(0, Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth);
     const resultPulse = document.querySelector("#resultPulse");
@@ -107,6 +113,8 @@ async function inspectPage(session, scenario) {
       uxBuild: report.uxBuild,
       mode: report.testMode,
       zone: report.currentZone,
+      width: window.innerWidth,
+      height: window.innerHeight,
       prologueHidden: Boolean(document.querySelector("#prologueOverlay")?.classList.contains("hidden")),
       objectTokens,
       actionButtons: document.querySelectorAll(".action-button").length,
@@ -115,10 +123,7 @@ async function inspectPage(session, scenario) {
       firstActionEnabled: Boolean(action && !action.disabled),
       firstObjectVisible: Boolean(firstObjectRect && firstObjectRect.top < window.innerHeight && firstObjectRect.bottom > 0),
       firstObjectEnabled: Boolean(firstObject && !firstObject.disabled),
-      firstUsableStepVisible: Boolean(
-        (actionRect && actionRect.top < window.innerHeight && actionRect.bottom > 0 && action && !action.disabled) ||
-        (firstObjectRect && firstObjectRect.top < window.innerHeight && firstObjectRect.bottom > 0 && firstObject && !firstObject.disabled)
-      ),
+      firstUsableStepVisible: canPressInViewport(action, actionRect) || canPressInViewport(firstObject, firstObjectRect),
       resultPulseVisible: Boolean(resultRect && resultRect.top < window.innerHeight && resultRect.bottom > 0),
       hasTitle: bodyText.includes("断句庭院"),
       hasBuild: bodyText.includes("1.1.1 Chronicle Expedition"),
@@ -136,14 +141,15 @@ async function captureScenario(scenario) {
     await wait(1200);
     const inspection = await inspectPage(session, scenario);
     const screenshot = { data: await session.screenshot() };
-    const screenshotPath = path.join(ROOT, scenario.screenshot);
-    fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
+    const screenshotPath = path.join(SCREENSHOT_DIR, scenario.screenshot);
+    fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
     fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, "base64"));
 
     const failures = [];
     if (inspection.uxBuild !== "1.1.1") failures.push("build label is not 1.1.1");
     if (inspection.mode !== scenario.mode) failures.push(`mode expected ${scenario.mode}, got ${inspection.mode}`);
     if (inspection.zone !== "Z1") failures.push(`initial zone expected Z1, got ${inspection.zone}`);
+    if (scenario.mobile && inspection.width > 520) failures.push(`viewport width ${inspection.width}px did not reach the phone breakpoint`);
     if (!inspection.prologueHidden) failures.push("prologue still covers the game interface");
     if (inspection.objectTokens < 2) failures.push("fewer than two object cards rendered");
     if (inspection.actionButtons < 1) failures.push("no action buttons rendered");
@@ -158,8 +164,8 @@ async function captureScenario(scenario) {
     return {
       name: scenario.name,
       url,
-      viewport: { width: scenario.width, height: scenario.height, mobile: scenario.mobile },
-      screenshot: scenario.screenshot,
+      viewport: { width: inspection.width, height: inspection.height, mobile: scenario.mobile },
+      screenshot: path.relative(ROOT, screenshotPath),
       passed: failures.length === 0,
       inspection,
       failures
@@ -174,10 +180,17 @@ function wait(ms = 30) {
 }
 
 const results = [];
+const failures = [];
 for (const scenario of scenarios) {
-  results.push(await captureScenario(scenario));
+  try {
+    const result = await captureScenario(scenario);
+    results.push(result);
+    failures.push(...result.failures.map((failure) => `${scenario.name}: ${failure}`));
+  } catch (error) {
+    failures.push(`${scenario.name}: ${error.message}`);
+    break;
+  }
 }
-const failures = results.flatMap((result) => result.failures.map((failure) => `${result.name}: ${failure}`));
 const output = {
   build: "1.1.1",
   browser: "Safari",
@@ -187,9 +200,6 @@ const output = {
   failures
 };
 console.log(JSON.stringify(output, null, 2));
-if (OUTPUT_PATH) {
-  const resolvedOutput = path.isAbsolute(OUTPUT_PATH) ? OUTPUT_PATH : path.join(ROOT, OUTPUT_PATH);
-  fs.mkdirSync(path.dirname(resolvedOutput), { recursive: true });
-  fs.writeFileSync(resolvedOutput, `${JSON.stringify(output, null, 2)}\n`, "utf8");
-}
+fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
+fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(output, null, 2)}\n`, "utf8");
 if (failures.length) process.exit(1);

@@ -18,7 +18,7 @@
 - 新增长期档案：完成轮次、远征胜场、最高轮次、最佳评分和总崩解次数均会持久保存。
 - 新增回声残片与三条永久铭文：深墨池、活页词库、定句锚。
 - 引导、探索、远征、沙盒四种模式并存；远征沿用探索的信息密度。
-- 存档升级为 schema 2，并将长期档案与单轮进度分离，兼容旧的 1.0.0 本地存档。
+- 单轮进度和长期档案分开管理。当前 schema 3 一并保存两者，并兼容旧版存档。
 - 首次进入仍默认亮色；玩家手动选择的主题与简繁语言会被记住。
 
 ## 玩法循环
@@ -47,43 +47,33 @@
 
 ## 本地运行
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\prototype\start.ps1 -Port 4174
+```sh
+node prototype/server.mjs 4174
 ```
 
 打开 `http://127.0.0.1:4174/index.html`。
 
 ## 验证
 
-浏览器回归使用 macOS 自带的 Safari。请先在 Safari 开发者设置中开启「允许远程自动化」，然后在仓库根目录运行以下命令。
+在仓库根目录运行逻辑与存档回归，这一步无需浏览器。
+
+```sh
+npm test
+```
+
+浏览器回归使用 macOS 自带的 Safari。打开 Safari 开发者设置中的「允许远程自动化」，启动本地服务器后，在另一个终端执行以下命令。
 
 ```sh
 npm ci
-(cd prototype && node server.mjs 4174)
+npm run test:browser
 ```
 
-保持服务运行，在另一个终端的同一目录执行：
+浏览器回归会通过 WebDriver 点击桌面与窄屏控件。报告和截图默认写入 `artifacts/browser/`。`production/releases/` 保存历史发布记录。
 
-```sh
-node scripts/run_dom_click_regression.mjs
-node scripts/run_visual_smoke.mjs
-```
-
-完整验证：
+也可以在 Windows 上用 PowerShell 运行静态与逻辑验证。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\validate_project.ps1 -Port 4174
+powershell -ExecutionPolicy Bypass -File .\scripts\validate_project.ps1
 ```
 
-核心分项：
-
-```powershell
-node .\scripts\run_progression_regression.mjs
-node .\scripts\run_app_regression.mjs
-node .\scripts\run_failure_audit.mjs
-node .\scripts\run_player_path_audit.mjs
-node .\scripts\run_dom_click_regression.mjs
-node .\scripts\run_visual_smoke.mjs
-```
-
-当前自动验收覆盖引导、探索和远征三条完整通关路线，以及远征崩解、奖励结算、铭文购买、失败上下文、真实 DOM 点击和桌面/手机布局。
+逻辑验证覆盖三模式通关、六种远征修正组合、奖励结算、护文限制、旧档迁移、刷新恢复和多标签页存档冲突。浏览器验证另检查窄屏探索通关、地图结算、常用控件和桌面／窄屏首屏。

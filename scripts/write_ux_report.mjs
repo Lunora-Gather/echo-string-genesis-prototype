@@ -2,12 +2,24 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadAppContext, summarizeSuite } from "./app_vm_harness.mjs";
 
-const outputPath = process.argv[2] || "production/releases/1.1.1/report.json";
-const visibilityPath = process.argv[3] || "production/releases/1.1.1/visibility_report.json";
-const root = process.cwd();
+const outputPath = process.argv[2] || "artifacts/browser/report.json";
+const reportDir = path.dirname(outputPath);
+const visibilityPath = process.argv[3] || path.join(reportDir, "visibility_report.json");
 
 function ensureParent(filePath) {
-  fs.mkdirSync(path.dirname(path.resolve(root, filePath)), { recursive: true });
+  fs.mkdirSync(path.dirname(path.resolve(filePath)), { recursive: true });
+}
+
+function readBrowserReport(filename, build) {
+  const file = path.join(reportDir, filename);
+  if (!fs.existsSync(file)) return null;
+  const report = JSON.parse(fs.readFileSync(file, "utf8"));
+  return report.build === build ? report : null;
+}
+
+function browserCoverage(report) {
+  if (!report) return "missing";
+  return report.passed ? "covered" : "failed";
 }
 
 function compactReport(report) {
@@ -44,14 +56,8 @@ const suite = context.window.__echoString.runRegressionSuite();
 const summary = summarizeSuite(suite);
 const failureAudit = context.window.__echoString.runFailureAudit();
 const playerPathAudit = context.window.__echoString.runPlayerPathAudit();
-const domClickReportPath = path.join(root, "production/releases/1.1.1/dom_click_report.json");
-const domClickRegression = fs.existsSync(domClickReportPath)
-  ? JSON.parse(fs.readFileSync(domClickReportPath, "utf8"))
-  : null;
-const visualSmokeReportPath = path.join(root, "production/releases/1.1.1/visual_smoke_report.json");
-const visualSmoke = fs.existsSync(visualSmokeReportPath)
-  ? JSON.parse(fs.readFileSync(visualSmokeReportPath, "utf8"))
-  : null;
+const domClickRegression = readBrowserReport("dom_click_report.json", suite.build);
+const visualSmoke = readBrowserReport("visual_smoke_report.json", suite.build);
 const guided = suite.reports.guided;
 const low = suite.reports.low;
 const expedition = suite.reports.expedition;
@@ -64,7 +70,8 @@ const report = {
   uxBuildName: guided.uxBuildName,
   source: "Node VM regression suite with guided, exploration, and expedition routes",
   generatedAt,
-  passed: suite.passed,
+  passed: suite.passed && failureAudit.passed && playerPathAudit.passed &&
+    [domClickRegression, visualSmoke].every((result) => result?.passed !== false),
   rollout: guided.rollout,
   comparison: suite.comparison,
   failureAudit,
@@ -78,11 +85,10 @@ const report = {
     "三路线回归套件",
     "长期成长与远征压力回归",
     "失败审计",
-    "HTTP健康检查",
     "玩家反馈事件与体验审计",
     "真实可见路径审计",
-    "真实DOM点击回归",
-    "桌面/手机视觉Smoke",
+    ...(domClickRegression?.passed ? ["真实DOM点击回归"] : []),
+    ...(visualSmoke?.passed ? ["桌面/手机视觉Smoke"] : []),
     "低引导真人试玩观察包"
   ],
   reports: {
@@ -110,8 +116,8 @@ const visibility = {
     { surface: "playtestObserverPack", status: "covered", note: "报告导出包含匿名试玩规则、理解追问、自动风险信号和观察者Markdown。" },
     { surface: "failureContext", status: "covered", note: "失败审计返回对象、词缀、原墨和词库上下文。" },
     { surface: "visiblePlayerPath", status: playerPathAudit.passed ? "covered" : "failed", note: "二次取空词、Z5词源误取和Boss核心裸露均被审计。" },
-    { surface: "domClickRegression", status: domClickRegression?.passed ? "covered" : "missing", note: "通过真实浏览器DOM点击完成引导、探索和远征路线。" },
-    { surface: "visualSmoke", status: visualSmoke?.passed ? "covered" : "missing", note: "桌面引导和手机低引导首屏无横向溢出，关键反馈可见，且存在可操作的首步入口。" },
+    { surface: "domClickRegression", status: browserCoverage(domClickRegression), note: "通过真实浏览器DOM点击完成引导、探索和远征路线。" },
+    { surface: "visualSmoke", status: browserCoverage(visualSmoke), note: "桌面引导和手机低引导首屏无横向溢出，关键反馈可见，且存在可操作的首步入口。" },
     { surface: "chronicleProgression", status: expedition.completed && !expedition.run.failed ? "covered" : "failed", note: "远征经历威胁崩解后仍可完成，并结算回声残片与永久记录。" },
     { surface: "vmRegression", status: suite.passed ? "covered" : "failed", note: "引导、探索和远征路线均完成到 Z7。" }
   ],
@@ -136,5 +142,6 @@ console.log(JSON.stringify({
   report: outputPath,
   visibility: visibilityPath,
   build: suite.build,
-  passed: suite.passed
+  passed: report.passed
 }, null, 2));
+if (!report.passed) process.exitCode = 1;
