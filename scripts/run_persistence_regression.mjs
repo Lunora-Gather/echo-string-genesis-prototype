@@ -20,6 +20,8 @@ function open(storage, search) {
 
 const storage = createStorage();
 const first = open(storage);
+assert.equal(first("state.theme"), "dark");
+assert.equal(open(createStorage({ echo_string_theme_preference_v1: "light" }))("state.theme"), "light");
 first(`routeExtract("statue", "Semantic.Structure.Fragile");
   routeInject("gate", "Semantic.Structure.Fragile");`);
 const continued = open(storage);
@@ -33,6 +35,14 @@ continued("el.checkpointBtn.click()");
 const restored = open(storage);
 assert.equal(restored("state.ink"), 12);
 assert.equal(restored(`hasTag(objectById("statue"), "Semantic.Structure.Fragile")`), true);
+
+const unsealedStorage = createStorage();
+open(unsealedStorage)(`routeExtract("gate", "Semantic.Structure.Closed");`);
+const unsealed = open(unsealedStorage);
+assert.equal(unsealed(`zone().complete(state) && state.flags.gateUnsealed && !state.flags.gateDestroyed`), true);
+assert.equal(unsealed(`state.ink === 8 && !hasTag(objectById("gate"), "Semantic.Structure.Closed")`), true);
+unsealed("undoLastSemanticAction()");
+assert.equal(open(unsealedStorage)(`!zone().complete(state) && hasTag(objectById("gate"), "Semantic.Structure.Closed") && state.ink === 12`), true);
 
 const completionStorage = createStorage();
 const route = open(completionStorage);

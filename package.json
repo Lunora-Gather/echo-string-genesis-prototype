@@ -2,7 +2,7 @@
   "name": "echo-string-genesis-browser-tests",
   "private": true,
   "scripts": {
-    "test": "node scripts/check_app_data_consistency.mjs && node scripts/check_ui_contract.mjs && node scripts/run_progression_regression.mjs && node scripts/run_app_regression.mjs && node scripts/run_failure_audit.mjs && node scripts/run_player_path_audit.mjs && node scripts/run_persistence_regression.mjs",
+    "test": "node scripts/check_app_data_consistency.mjs && node scripts/check_ui_contract.mjs && node scripts/run_progression_regression.mjs && node scripts/run_app_regression.mjs && node scripts/run_failure_audit.mjs && node scripts/run_player_path_audit.mjs && node scripts/run_persistence_regression.mjs && node scripts/run_crossing_regression.mjs && node scripts/run_encounter_regression.mjs",
     "test:browser": "node scripts/run_dom_click_regression.mjs && node scripts/run_visual_smoke.mjs"
   },
   "devDependencies": {

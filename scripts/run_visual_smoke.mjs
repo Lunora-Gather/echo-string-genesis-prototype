@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
+const releaseVersion = fs.readFileSync(path.join(ROOT, "VERSION"), "utf8").trim();
 const APP_URL = process.argv[2] || "http://127.0.0.1:4174/index.html";
 const OUTPUT_PATH = path.resolve(ROOT, process.argv[3] || "artifacts/browser/visual_smoke_report.json");
 const SCREENSHOT_DIR = path.join(path.dirname(OUTPUT_PATH), "screenshots");
@@ -126,7 +127,7 @@ async function inspectPage(session, scenario) {
       firstUsableStepVisible: canPressInViewport(action, actionRect) || canPressInViewport(firstObject, firstObjectRect),
       resultPulseVisible: Boolean(resultRect && resultRect.top < window.innerHeight && resultRect.bottom > 0),
       hasTitle: bodyText.includes("断句庭院"),
-      hasBuild: bodyText.includes("1.1.1 Chronicle Expedition"),
+      hasBuild: bodyText.includes(${JSON.stringify(`${releaseVersion} Chronicle Expedition`)}),
       lowUnscannedLeaks: lowLeaks
     };
   })()`);
@@ -146,7 +147,7 @@ async function captureScenario(scenario) {
     fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, "base64"));
 
     const failures = [];
-    if (inspection.uxBuild !== "1.1.1") failures.push("build label is not 1.1.1");
+    if (inspection.uxBuild !== releaseVersion) failures.push(`build label is not ${releaseVersion}`);
     if (inspection.mode !== scenario.mode) failures.push(`mode expected ${scenario.mode}, got ${inspection.mode}`);
     if (inspection.zone !== "Z1") failures.push(`initial zone expected Z1, got ${inspection.zone}`);
     if (scenario.mobile && inspection.width > 520) failures.push(`viewport width ${inspection.width}px did not reach the phone breakpoint`);
@@ -192,7 +193,7 @@ for (const scenario of scenarios) {
   }
 }
 const output = {
-  build: "1.1.1",
+  build: releaseVersion,
   browser: "Safari",
   url: APP_URL,
   passed: failures.length === 0,

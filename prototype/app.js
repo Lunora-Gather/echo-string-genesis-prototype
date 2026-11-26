@@ -1,5 +1,5 @@
 const RUNTIME_CONFIG = globalThis.EchoRuntimeConfig || {
-  version: "1.1.1",
+  version: "1.1.2",
   name: "Chronicle Expedition",
   saveSchema: 3,
   saveKey: "echo_string_save_v1.1",
@@ -20,8 +20,8 @@ function isRegressionSession() {
 }
 
 const TAGS = {
-  "Semantic.Structure.Closed": { name: "封闭", slot: "Structure", color: "#B88CFF", extract: 1, inject: 2, compatible: ["Door", "Gate", "Mechanism", "Enemy", "Boss"] },
-  "Semantic.Structure.Solid": { name: "坚固", slot: "Structure", color: "#9AA5B1", extract: 1, inject: 2, compatible: ["Door", "Stone", "Enemy", "Boss", "Mechanism"] },
+  "Semantic.Structure.Closed": { name: "封闭", slot: "Structure", color: "#B88CFF", extract: 4, inject: 2, compatible: ["Door", "Gate", "Mechanism", "Enemy", "Boss"] },
+  "Semantic.Structure.Solid": { name: "坚固", slot: "Structure", color: "#9AA5B1", extract: 1, inject: 2, compatible: ["Door", "Stone", "Enemy", "Boss", "Mechanism", "Water"] },
   "Semantic.Structure.Fragile": { name: "脆弱", slot: "Structure", color: "#F2D36B", extract: 1, inject: 2, compatible: ["Door", "Stone", "Enemy", "Boss", "Mechanism", "Debris"] },
   "Semantic.Mass.Heavy": { name: "沉重", slot: "Mass", color: "#6B5B4A", extract: 1, inject: 2, compatible: ["Stone", "Enemy", "Boss", "Platform", "Mechanism", "Debris"] },
   "Semantic.Mass.Light": { name: "轻盈", slot: "Mass", color: "#9EE7FF", extract: 1, inject: 2, compatible: ["Stone", "Enemy", "Boss", "Platform", "Mechanism", "Debris"] },
@@ -345,6 +345,8 @@ function saveGameToLocal() {
       testMode: state.testMode,
       ink: state.ink,
       inventory: state.inventory,
+      travelWord: state.travelWord,
+      selectedInventoryIndex: state.selectedInventoryIndex,
       flags: state.flags,
       unlockedZones: state.unlockedZones,
       language: state.language,
@@ -359,7 +361,10 @@ function saveGameToLocal() {
     });
     storage.setItem(RUNTIME_CONFIG.saveKey, raw);
     savedGameRaw = raw;
+    state.storageConflict = false;
+    state.storageNotice = "";
   } catch (error) {
+    state.storageNotice = "浏览器未能保存进度。此窗口仍可继续，本次改动可能丢失。";
     console.warn("LocalStorage save failed:", error);
   }
 }
@@ -380,8 +385,15 @@ function restoreObjects(zoneConfig, savedObjects) {
       obj.shieldLayers = Math.max(0, Math.min(template.shieldLayers, saved.shieldLayers));
       if (obj.shieldLayers === 0) obj.lockedSlots = [];
     }
-    for (const key of ["scanned", "breach", "destroyed", "defeated", "fractureWindow"]) {
+    for (const key of ["scanned", "breach", "destroyed", "defeated", "fractureWindow", "fell"]) {
       if (typeof saved[key] === "boolean") obj[key] = saved[key];
+    }
+    closeInvalidFracture(obj);
+    if (obj.type === "Enemy") {
+      obj.combatBeat = saved.combatBeat === 1 ? 1 : 0;
+      obj.combatOpening = obj.defeated ? "" : Object.hasOwn(ENEMY_OPENINGS, saved.combatOpening)
+        ? saved.combatOpening : saved.parryPrimed === true ? "parry" : "";
+      obj.breach = Boolean(obj.combatOpening);
     }
     if (saved.reactionHistory && typeof saved.reactionHistory === "object") obj.reactionHistory = saved.reactionHistory;
     return obj;
@@ -451,10 +463,12 @@ function loadGameFromLocal() {
       try {
         saved = JSON.parse(savedGameRaw);
       } catch (error) {
+        state.storageNotice = "这份存档无法读取。庭院从入口开始。";
         console.warn("Game save is invalid:", error);
       }
     }
-    state.theme = (preferredTheme ?? saved?.theme) === "dark" ? "dark" : "light";
+    const savedTheme = preferredTheme ?? saved?.theme;
+    if (savedTheme === "dark" || savedTheme === "light") state.theme = savedTheme;
     if (saved?.profile) state.profile = PROGRESSION.createProfile(saved.profile);
     if (!PAGE_PARAMS.has("lang") && Object.hasOwn(LANGUAGES, saved?.language)) state.language = saved.language;
     const savedMode = Object.hasOwn(TEST_MODES, saved?.testMode) ? saved.testMode : "guided";
@@ -492,6 +506,9 @@ function loadGameFromLocal() {
     state.zones = ZONES.map((config) => ({ ...config, objects: restoreObjects(config, saved.objects[config.id]) }));
     state.ink = Number.isFinite(saved.ink) ? Math.max(0, Math.min(state.maxInk, saved.ink)) : state.maxInk;
     state.inventory = restoreInventory(saved.inventory);
+    const index = saved.selectedInventoryIndex;
+    state.selectedInventoryIndex = Number.isInteger(index) && index >= 0 && index < state.inventory.length ? index : null;
+    state.travelWord = hasInventory(saved.travelWord) ? saved.travelWord : "";
     state.metrics = restoreMetrics(saved.metrics, saved.elapsedSec);
     state.log = state.metrics.timeline.slice(0, 9);
     state.lastFeedback = state.metrics.feedbackEvents[0] || null;
@@ -501,6 +518,7 @@ function loadGameFromLocal() {
     };
     restoreHistory(saved);
   } catch (error) {
+    state.storageNotice = "浏览器未能读取存档。本次进度可能无法保留。";
     console.warn("LocalStorage load failed:", error);
   } finally {
     applyTheme();
@@ -599,6 +617,7 @@ const TEST_MODES = {
 
 const BUILD_LABEL = RUNTIME_CONFIG.version;
 const THEME_PREFERENCE_KEY = RUNTIME_CONFIG.themePreferenceKey;
+const INSPECTOR_DRAWER_QUERY = "(max-width: 980px)";
 const BUILD_NAME = RUNTIME_CONFIG.name;
 const BUILD_ROLLOUT = [
   { version: "UX11", focus: "低引导自动回归" },
@@ -614,15 +633,16 @@ const BUILD_ROLLOUT = [
   { version: "UX21", focus: "真人试玩反馈硬化" },
   { version: "1.0.0", focus: "公开发布与圆润视觉系统" },
   { version: "1.1.0", focus: "远征压力、永久铭文与长期纪行" },
-  { version: "1.1.1", focus: "游戏主界面重构与真实模式布局修复" }
+  { version: "1.1.1", focus: "游戏主界面重构与真实模式布局修复" },
+  { version: "1.1.2", focus: "场景式关卡布局、跨区携词与战斗反馈" }
 ];
 
 const TAG_CAUSES = {
-  "Semantic.Structure.Closed": "阻断通路或机关，需要替换结构词。",
+  "Semantic.Structure.Closed": "封住通路或机关。",
   "Semantic.Structure.Solid": "让目标更难破坏，战斗中优先考虑剥离。",
   "Semantic.Structure.Fragile": "让结构更容易被重击破坏。",
   "Semantic.Mass.Heavy": "增加重量，可压机关但移动困难。",
-  "Semantic.Mass.Light": "降低重量，便于推动或击飞。",
+  "Semantic.Mass.Light": "让石块易推，也让敌人容易被击离立足处。",
   "Semantic.Temperature.Overheated": "提供热源，可融冰并触发蒸汽。",
   "Semantic.Temperature.Frozen": "冻结目标，也能制造破裂窗口。",
   "Semantic.Medium.Wet": "自身不强，主要用于和过热组合。",
@@ -632,12 +652,12 @@ const TAG_CAUSES = {
 
 const LOW_OBJECTIVES = {
   Z1: "打开被封住的庭院入口。",
-  Z2: "让石块先移动，再让机关获得足够重量。",
+  Z2: "让地面机关获得足够重量。",
   Z3: "清理断廊游兵，观察防御状态怎么影响伤害。",
-  Z4: "解除冰封，并利用环境反应改变战斗局面。",
+  Z4: "解冻升降台，处理挡在通路上的缀刺兽。",
   Z5: "让碎片按正确方向移动，形成临时桥面。",
   Z6: "逐层拆开守卫护文，再处理裸露核心。",
-  Z7: "查看切片结果并复盘本轮路径。"
+  Z7: "沿书廊进入修正文库。"
 };
 
 const REACTION_DISCOVERIES = [
@@ -649,7 +669,7 @@ const REACTION_DISCOVERIES = [
 const ZONE_MASTERY = {
   Z1: { name: "一笔破门", detail: "不触发无效操作，完成第一次语义改写。" },
   Z2: { name: "质量回环", detail: "不触发无效操作，让同一石块先轻后重。" },
-  Z3: { name: "借势拆壳", detail: "至少完成一次弹反，并清理全部游兵。" },
+  Z3: { name: "借势穿廊", detail: "用弹反或击落解决游兵，不触发无效操作。" },
   Z4: { name: "雾中火花", detail: "发现蒸汽爆发，并完成温室目标。" },
   Z5: { name: "双路造桥", detail: "直接调度机关，或把相反力场写入碎片制造震荡。" },
   Z6: { name: "三重校对", detail: "用三种不同反应拆完全部护文。" },
@@ -666,6 +686,11 @@ const TRADITIONAL_PHRASES = {
   "语弦生态": "語弦生態",
   "创世纪": "創世紀",
   "原初作者": "原初作者",
+  "携": "攜",
+  "链接": "連結",
+  "复制": "複製",
+  "权限": "權限",
+  "丢失": "遺失",
   "重词污染": "重詞污染",
   "语义冲突": "語義衝突",
   "异墨者": "異墨者",
@@ -751,7 +776,9 @@ const TRADITIONAL_CHARACTERS = {
   "战": "戰", "斗": "鬥", "绽": "綻", "里": "裡", "证": "證", "环": "環", "见": "見", "标": "標",
   "补": "補", "报": "報", "告": "告", "择": "擇", "处": "處", "应": "應", "阶": "階", "续": "續",
   "释": "釋", "览": "覽", "这": "這", "备": "備", "须": "須", "难": "難", "够": "夠", "绳": "繩",
-  "胜": "勝", "录": "錄", "坏": "壞", "规": "規", "简": "簡", "块": "塊", "练": "練", "获": "獲"
+  "胜": "勝", "录": "錄", "坏": "壞", "规": "規", "简": "簡", "块": "塊", "练": "練", "获": "獲",
+  "横": "橫", "势": "勢", "热": "熱", "侧": "側", "闪": "閃", "损": "損", "缝": "縫",
+  "带": "帶", "护": "護", "余": "餘", "悬": "懸", "坠": "墜"
 };
 
 const traditionalPhrases = Object.entries(TRADITIONAL_PHRASES).sort((a, b) => b[0].length - a[0].length);
@@ -830,31 +857,31 @@ const ZONES = [
   {
     id: "Z1",
     name: "封文大门",
-    objective: "从裂纹石像剥离“脆弱”，注入封文大门，再用重击破门。",
-    reflection: "第一段只验证最小闭环：看见词、取走词、写入词、看到世界变化。",
+    objective: "取走封印，或削弱石门后重击。",
+    reflection: "石像的裂纹在雨里格外清楚。庭院里的词，未必永远留在原处。",
     objects: [
-      object("gate", "封文大门", "Door", "门", ["Semantic.Structure.Closed", "Semantic.Structure.Solid"], [], ["Structure"], []),
+      object("gate", "封文大门", "Door", "门", ["Semantic.Structure.Closed", "Semantic.Structure.Solid"], ["Semantic.Structure.Closed"], ["Structure"], []),
       object("statue", "裂纹石像", "Stone", "像", ["Semantic.Structure.Fragile"], ["Semantic.Structure.Fragile"], ["Structure", "Mass"], [])
     ],
-    complete: (s) => s.flags.gateDestroyed
+    complete: (s) => s.flags.gateDestroyed || s.flags.gateUnsealed
   },
   {
     id: "Z2",
     name: "压机关庭",
-    objective: "把压机关石变轻后推到机关板，再恢复沉重压住机关。",
-    reflection: "质量词不能只像钥匙。轻盈负责移动，沉重负责产生压力。",
+    objective: "让机关板下沉。可以搬石，也可以改写机关本身。",
+    reflection: "石块的重量会改变。雨水落在机关板上，却不足以让它下沉。",
     objects: [
       object("block", "压机关石", "Stone", "石", ["Semantic.Mass.Heavy"], ["Semantic.Mass.Heavy"], ["Mass", "Structure"], []),
-      object("tablet", "浮字碑", "Mechanism", "轻", ["Semantic.Mass.Light"], ["Semantic.Mass.Light"], ["Mass"], []),
-      object("plate", "地面机关", "Mechanism", "机", [], [], [], [])
+      object("tablet", "浮字碑", "Mechanism", "轻", ["Semantic.Mass.Light"], ["Semantic.Mass.Light"], ["Mass", "Structure"], []),
+      object("plate", "地面机关", "Mechanism", "机", [], [], ["Mass"], [])
     ],
     complete: (s) => s.flags.platePressed
   },
   {
     id: "Z3",
     name: "断廊遭遇",
-    objective: "通过弹反或重击打开语义破绽，剥离坚固或注入脆弱击败游兵。",
-    reflection: "战斗里只显示关键槽位，避免玩家被数据库淹没。",
+    objective: "清退两名游兵。观察来势，创造改写甲片的机会。",
+    reflection: "招式落空时，游兵的甲片会露出缝隙。断廊外侧没有护栏，变轻的东西也站不稳。",
     objects: [
       enemy("guardA", "字壳游兵A", ["Semantic.Structure.Solid"], 38),
       enemy("guardB", "字壳游兵B", ["Semantic.Structure.Fragile"], 28)
@@ -864,21 +891,21 @@ const ZONES = [
   {
     id: "Z4",
     name: "冻水温室",
-    objective: "用过热解除冰封，再把过热与潮湿组合成蒸汽爆发。",
-    reflection: "潮湿必须马上接上反应收益，否则它会被玩家误认为弱词。",
+    objective: "解冻升降台。用蒸汽遮住通路，或击败缀刺兽。",
+    reflection: "窗前结着冰，暖处升起水汽。这里的温度和水分会彼此改变。",
     objects: [
       object("lift", "冰封升降台", "Mechanism", "台", ["Semantic.Temperature.Frozen"], [], ["Temperature"], []),
-      object("pool", "冻结水池", "Water", "水", ["Semantic.Temperature.Frozen", "Semantic.Medium.Wet"], ["Semantic.Temperature.Frozen", "Semantic.Medium.Wet"], ["Temperature", "Medium"], [], true),
+      object("pool", "冻结水池", "Water", "水", ["Semantic.Temperature.Frozen", "Semantic.Medium.Wet"], ["Semantic.Temperature.Frozen", "Semantic.Medium.Wet"], ["Temperature", "Medium", "Structure"], [], true),
       object("brazier", "火盆", "FireSource", "火", ["Semantic.Temperature.Overheated"], ["Semantic.Temperature.Overheated"], ["Temperature"], ["Temperature"], true),
       enemy("beast", "缀刺兽", ["Semantic.Mass.Heavy", "Semantic.Temperature.Overheated"], 48)
     ],
-    complete: (s) => s.flags.liftMelted && s.flags.steamBurst
+    complete: (s) => Boolean(s.flags.liftMelted) && (s.flags.icePath || s.flags.steamBurst || zoneObjects(s).some((obj) => obj.id === "beast" && obj.defeated))
   },
   {
     id: "Z5",
     name: "碎桥力场",
     objective: "用吸引聚拢碎片，再用排斥推入锚点形成桥面。",
-    reflection: "物理谜题必须少量关键碎片，失控时宁可重置，不靠玩家忍耐。",
+    reflection: "断桥碎片没有坠入山谷。两侧立柱仍在牵动它们。",
     objects: [
       object("pullPillar", "吸引力场柱", "FieldPillar", "引", ["Semantic.Field.Attract"], ["Semantic.Field.Attract"], ["Field"], []),
       object("pushPillar", "排斥力场柱", "FieldPillar", "斥", ["Semantic.Field.Repel"], ["Semantic.Field.Repel"], ["Field"], []),
@@ -890,7 +917,7 @@ const ZONES = [
     id: "Z6",
     name: "残章中庭",
     objective: "用环境词缀削掉三层护文，结构槽开放后注入脆弱并重击核心。",
-    reflection: "Boss不是背词表考试。每阶段只问玩家一个问题：我该从环境取什么词反制它？",
+    reflection: "守卫外有三层护文，每层回应不同的语义反应。",
     objects: [
       boss("warden", "残章守卫", ["Semantic.Structure.Solid", "Semantic.Mass.Heavy"]),
       object("bossPool", "潮湿水纹", "Water", "水", ["Semantic.Medium.Wet"], ["Semantic.Medium.Wet"], ["Medium"], [], true),
@@ -905,8 +932,8 @@ const ZONES = [
   {
     id: "Z7",
     name: "修正文库门槛",
-    objective: "切片完成。这里只展示后期系统伏笔，不解锁新机制。",
-    reflection: "结尾不再加新规则，让玩家带着刚建立的理解离开。",
+    objective: "沿书廊进入修正文库。",
+    reflection: "天色渐明。本轮改写与回声已在文库留下记录。",
     objects: [
       object("archive", "未授权文库", "Mechanism", "库", [], [], [], [])
     ],
@@ -962,6 +989,7 @@ const state = {
   ink: 12,
   maxInk: 12,
   inventory: [],
+  travelWord: "",
   selectedObjectId: null,
   selectedTagId: null,
   selectedInventoryIndex: null,
@@ -979,7 +1007,8 @@ const state = {
   unlockedZones: ["Z1"],
   completionSfxPlayed: false,
   storageConflict: false,
-  theme: "light",
+  storageNotice: "",
+  theme: "dark",
   language: "zh-Hans",
   chronicleExpanded: false,
   profile: INITIAL_PROFILE,
@@ -998,7 +1027,8 @@ const el = {
   zoneObjective: document.getElementById("zoneObjective"),
   stageHero: document.getElementById("stageHero"),
   stageRunStatus: document.getElementById("stageRunStatus"),
-  sceneCount: document.getElementById("sceneCount"),
+  combatReadout: document.getElementById("combatReadout"),
+  travelLoadout: document.getElementById("travelLoadout"),
   nextHint: document.getElementById("nextHint"),
   resultPulse: document.getElementById("resultPulse"),
   decisionStrip: document.getElementById("decisionStrip"),
@@ -1037,7 +1067,7 @@ const el = {
   closeTravelBtn: document.getElementById("closeTravelBtn"),
   closeInspectorBtn: document.getElementById("closeInspectorBtn"),
   zonePanel: document.querySelector(".zone-panel"),
-  inspectorPanel: document.querySelector(".inspector-panel"),
+  inspectorPanel: document.getElementById("inspectorPanel"),
   bottomPanel: document.querySelector(".bottom-panel")
 };
 
@@ -1082,8 +1112,12 @@ function runIsFailed() {
   return Boolean(isExpedition() && state.run?.failed);
 }
 
+function isRevisiting() {
+  return state.unlockedZones.includes(state.zones[state.zone + 1]?.id);
+}
+
 function actionBlockedByRun() {
-  if (isCompleted()) return true;
+  if (isCompleted() || isRevisiting()) return true;
   if (!runIsFailed()) return false;
   log("本轮远征已经崩解，请先重新整备。", "warn");
   render();
@@ -1201,6 +1235,7 @@ function createMetrics(testMode = "guided") {
     blockedActions: 0,
     heavyStrikes: 0,
     parries: 0,
+    sidesteps: 0,
     bossSemanticActions: 0,
     bossPhaseCounters: [],
     checkpointSaves: 0,
@@ -1216,6 +1251,7 @@ function createMetrics(testMode = "guided") {
     playtestNotes: [],
     zoneVisits: { Z1: 1 },
     zoneCompletions: [],
+    wordCrossings: [],
     zoneDurations: [],
     modeChanges: [{ mode: testMode, label: TEST_MODES[testMode], t: 0, zone: "Z1" }],
     timeline: []
@@ -1256,7 +1292,7 @@ function setTestMode(mode) {
     t: elapsedSeconds(),
     zone: zone().id
   });
-  log(`测试模式切换为：${TEST_MODES[mode]}。`);
+  log(`已切换至${TEST_MODES[mode]}模式。`);
   saveAndRender();
 }
 
@@ -1341,7 +1377,8 @@ function zoneMistakes(zoneId = zone().id) {
 
 function masteryEligible(zoneId = zone().id) {
   if (!zone().complete(state)) return false;
-  if (zoneId === "Z3") return state.metrics.parries > 0 && zoneMistakes(zoneId) === 0;
+  if (zoneId === "Z2") return Boolean(state.flags.blockMoved) && zoneMistakes(zoneId) === 0;
+  if (zoneId === "Z3") return (state.metrics.parries > 0 || zoneObjects().some((item) => item.fell)) && zoneMistakes(zoneId) === 0;
   if (zoneId === "Z4") return state.metrics.reactionCounts.SteamBurst > 0 && zoneMistakes(zoneId) === 0;
   if (zoneId === "Z5") return zoneMistakes(zoneId) === 0;
   if (zoneId === "Z6") {
@@ -1364,6 +1401,7 @@ function failureLabel(category) {
     "inventory-full": "词库已满",
     "slot-missing": "目标缺槽",
     "slot-locked": "槽位锁定",
+    "combat-guarded": "战斗破绽未开",
     "ink-low": "原墨不足",
     incompatible: "对象不兼容",
     regression: "回归异常",
@@ -1601,6 +1639,7 @@ function semanticSnapshot(label) {
     zone: state.zone,
     ink: state.ink,
     inventory: [...state.inventory],
+    travelWord: state.travelWord,
     selectedObjectId: state.selectedObjectId,
     selectedTagId: state.selectedTagId,
     selectedInventoryIndex: state.selectedInventoryIndex,
@@ -1612,6 +1651,7 @@ function semanticSnapshot(label) {
 function restoreSemanticSnapshot(snapshot) {
   state.ink = Math.min(state.maxInk, snapshot.ink);
   state.inventory = [...snapshot.inventory];
+  state.travelWord = hasInventory(snapshot.travelWord) ? snapshot.travelWord : "";
   state.selectedObjectId = snapshot.selectedObjectId;
   state.selectedTagId = snapshot.selectedTagId;
   state.selectedInventoryIndex = snapshot.selectedInventoryIndex;
@@ -1672,15 +1712,19 @@ function undoLastSemanticAction() {
 function selectObject(id) {
   state.selectedObjectId = id;
   state.selectedTagId = null;
+  el.inspectorPanel?.classList.remove("inventory-open");
   render();
   setInspectorOpen(true);
-  if (window.matchMedia?.("(max-width: 1080px)").matches) el.closeInspectorBtn?.focus?.({ preventScroll: true });
+  const scroll = el.inspectorPanel?.querySelector(".inspector-scroll");
+  if (scroll) scroll.scrollTop = 0;
+  if (window.matchMedia?.(INSPECTOR_DRAWER_QUERY).matches) el.closeInspectorBtn?.focus?.({ preventScroll: true });
 }
 
 function scanSelected() {
   if (actionBlockedByRun()) return;
   const obj = selectedObject();
   if (!obj) return log("先选择一个对象。", "warn");
+  if (obj.fell) return;
   obj.scanned = true;
   state.metrics.scans += 1;
   markFirst("firstScanSec");
@@ -1688,6 +1732,16 @@ function scanSelected() {
   log(`扫描到 ${obj.name}：${obj.currentTags.map(tagName).join(" / ") || "无显性词缀"}。`, "good");
   advanceThreat(2, "扫描");
   saveAndRender();
+  if (window.matchMedia?.(INSPECTOR_DRAWER_QUERY).matches && !el.inspectorPanel?.classList.contains("open")) {
+    setInspectorOpen(true);
+    el.closeInspectorBtn?.focus?.({ preventScroll: true });
+  }
+  if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    el.stageHero.querySelector(".scene-scan")?.animate?.(
+      [{ top: "0%", opacity: 0 }, { opacity: 1, offset: .16 }, { top: "100%", opacity: 0 }],
+      { duration: 630, easing: "ease-out" }
+    );
+  }
 }
 
 function selectTag(tagId) {
@@ -1700,6 +1754,8 @@ function extractSelectedTag() {
   const obj = selectedObject();
   const tagId = state.selectedTagId;
   if (!obj) return log("先选择对象。", "warn");
+  if (obj.fell) return log("目标已坠落，无法接近。", "warn");
+  if (obj.id === "gate" && zone().complete(state)) return log("石门已经打开。", "warn");
   if (!obj.scanned) return log("先扫描目标，再剥离词缀。", "warn");
   if (!tagId) return log("先点选一个词缀。", "warn");
   const mechanicHint = z5MechanicHint(obj);
@@ -1710,6 +1766,7 @@ function extractSelectedTag() {
   const cost = extractCost(def);
   if (state.ink < cost) return log("原墨不足，无法剥离。", "bad", "ink-low");
   if (!canTakeVisibleTag(obj, tagId)) return log(`${obj.name} 当前没有可剥离的“${def.name}”。`, "bad", "tag-unavailable");
+  if (enemyStructureGuarded(obj, tagId)) return log("敌人的结构槽还没有露出，先打出破绽。", "bad", "combat-guarded");
   pushUndo(`剥离“${def.name}”`);
   state.ink -= cost;
   state.inventory.push(tagId);
@@ -1719,28 +1776,38 @@ function extractSelectedTag() {
   audio.playSfx("extract");
   if (!obj.persistentSource && !obj.lockedSlots.includes(def.slot)) {
     obj.currentTags = obj.currentTags.filter((item) => item !== tagId);
+    closeInvalidFracture(obj);
   }
   log(`剥离“${def.name}”，收入临时词库。`, "good");
   advanceThreat(4, "剥离");
+  if (obj.id === "gate" && tagId === "Semantic.Structure.Closed") {
+    state.flags.gateUnsealed = true;
+    audio.playSfx("success");
+    log("朱绦滑落，完整的石门向内打开。", "good");
+    return finishGateOpening();
+  }
   selectGuidedRecommendedTarget(obj.id);
   saveAndRender();
 }
 
 function selectInventory(index) {
   state.selectedInventoryIndex = index;
-  render();
+  saveAndRender();
 }
 
 function injectSelectedInventory() {
   if (actionBlockedByRun()) return;
   const obj = selectedObject();
   if (!obj) return log("先选择注入目标。", "warn");
+  if (obj.fell) return log("目标已坠落，无法写入。", "warn");
   if (!obj.scanned) return log("先扫描目标，确认槽位。", "warn");
+  if (obj.id === "gate" && zone().complete(state)) return log("石门已经打开。", "warn");
   const tagId = state.inventory[state.selectedInventoryIndex];
   if (!tagId) return log("先选择词库中的词缀。", "warn");
   const def = tag(tagId);
   if (!obj.openSlots.includes(def.slot)) return log(`${obj.name} 没有${slotName(def.slot)}，无法写入“${def.name}”。`, "bad", "slot-missing");
   if (slotLockedForTag(obj, tagId)) return log(`${obj.name} 的${slotName(def.slot)}被锁定。`, "bad", "slot-locked");
+  if (enemyStructureGuarded(obj, tagId)) return log("敌人的结构槽还没有露出，先打出破绽。", "bad", "combat-guarded");
   if (!def.compatible.includes(obj.type)) return log(`“${def.name}”不能作用于${objectTypeName(obj.type)}。`, "bad", "incompatible");
   const cost = injectCost(def);
   if (state.ink < cost) return log("原墨不足，无法注入。", "bad", "ink-low");
@@ -1763,11 +1830,17 @@ function injectSelectedInventory() {
   } else {
     state.selectedInventoryIndex = null;
   }
+  if (!hasInventory(state.travelWord)) state.travelWord = "";
   state.metrics.injects += 1;
   markFirst("firstInjectSec");
   if (obj.id === "warden") state.metrics.bossSemanticActions += 1;
   audio.playSfx("inject");
   log(`向 ${obj.name} 注入“${def.name}”。`, "good");
+  closeInvalidFracture(obj);
+  if (enemyIntent(obj)?.id === "charge" && !enemyOpening(obj) && tagId === "Semantic.Temperature.Frozen" && replacedTags.includes("Semantic.Temperature.Overheated")) {
+    finishEnemyBeat(obj, "stagger");
+    log("热刺凝霜，冲撞被打断。", "good");
+  }
   applyImmediateEffects(obj, tagId);
   if (collisionReaction) triggerReaction(obj, collisionReaction);
   resolveReactions(obj);
@@ -1776,6 +1849,16 @@ function injectSelectedInventory() {
 }
 
 function applyImmediateEffects(obj, tagId) {
+  if (obj.id === "tablet" && tagId === "Semantic.Structure.Closed" && !state.flags.tabletDropped) {
+    state.flags.tabletDropped = true;
+    state.flags.platePressed = true;
+    audio.playSfx("success");
+    log("悬浮机关被封住，石碑落下压住了机关板。", "good");
+  }
+  if (obj.id === "pool") {
+    state.flags.icePath = hasTag(obj, "Semantic.Structure.Solid") && hasTag(obj, "Semantic.Temperature.Frozen");
+    if (state.flags.icePath) log("冰面足以承重，可以绕过缀刺兽抵达升降台。", "good");
+  }
   if (obj.id === "lift" && tagId === "Semantic.Temperature.Overheated") {
     state.flags.liftMelted = true;
     log("冰封升降台被过热解冻，机关开始转动。", "good");
@@ -1786,6 +1869,16 @@ function applyImmediateEffects(obj, tagId) {
   if (obj.id === "block" && tagId === "Semantic.Mass.Light") {
     log("压机关石变轻，可以推动。", "good");
   }
+  if (obj.id === "block" && tagId === "Semantic.Mass.Heavy" && state.flags.blockMoved && !state.flags.platePressed) {
+    state.flags.platePressed = true;
+    audio.playSfx("success");
+    log("压机关石恢复沉重，机关板随即下沉，出口栅门打开。", "good");
+  }
+  if (obj.id === "plate" && tagId === "Semantic.Mass.Heavy" && !state.flags.platePressed) {
+    state.flags.platePressed = true;
+    audio.playSfx("success");
+    log("机关板被自身重量压下，出口栅门打开。", "good");
+  }
   if (obj.id === "warden" && tagId === "Semantic.Structure.Fragile" && obj.shieldLayers === 0) {
     log("残章守卫核心变得脆弱，重击可终结。", "good");
   }
@@ -1795,6 +1888,10 @@ function applyImmediateEffects(obj, tagId) {
   if (obj.id === "warden" && tag(tagId)?.slot === "Field" && obj.shieldLayers === 1) {
     log("第三层护文被力场牵动，等待相反力场相撞。", "good");
   }
+}
+
+function closeInvalidFracture(obj) {
+  if (obj.fractureWindow && !BOSS_COUNTERS[2].tags.every(id => hasTag(obj, id))) obj.fractureWindow = false;
 }
 
 function resolveReactions(obj) {
@@ -1814,7 +1911,8 @@ function defeatObject(obj) {
   obj.defeated = true;
   if (obj.id === "warden") state.flags.bossDefeated = true;
   audio.playSfx("success");
-  log(`${obj.name} 被击败。`, "good");
+  if (obj.fell) log(`${obj.name} 被击离断廊，坠入下方的雨幕。`, "good", "combat-knockback");
+  else log(`${obj.name} 被击败。`, "good");
 }
 
 function triggerReaction(obj, reactionId) {
@@ -1829,6 +1927,7 @@ function triggerReaction(obj, reactionId) {
     if (zone().id === "Z4") state.flags.steamBurst = true;
     obj.currentTags = obj.currentTags.filter((id) => id !== "Semantic.Medium.Wet");
     applyReactionHpDamage(obj, 12);
+    if (enemyIntent(obj) && !enemyOpening(obj)) finishEnemyBeat(obj, "stagger");
     triggerVisualRipple(reactionId, obj.id);
     audio.playSfx("reaction");
     triggerScreenShake("medium");
@@ -1898,28 +1997,98 @@ function restoreBossGuardedStructure(obj) {
   log("残章守卫结构护文重新闭合，冻结裂隙消散。", "good");
 }
 
+function finishGateOpening() {
+  saveAndRender();
+  if (!runIsFailed()) {
+    setInspectorOpen(false);
+    el.sceneMap.querySelector('[data-object-id="gate"]')?.focus({ preventScroll: true });
+  }
+}
+
+const ENEMY_INTENTS = {
+  sweep: { id: "sweep", name: "横扫", ink: 2, defense: "parry" },
+  brace: { id: "brace", name: "架盾", ink: 0, defense: "" },
+  charge: { id: "charge", name: "蓄力冲撞", ink: 4, defense: "sidestep" },
+  tail: { id: "tail", name: "热刺甩尾", ink: 2, defense: "parry" }
+};
+const ENEMY_OPENINGS = {
+  parry: "弹反破绽",
+  sidestep: "冲撞落空",
+  stagger: "敌人失衡"
+};
+
+function enemyIntent(obj) {
+  if (obj?.type !== "Enemy" || obj.defeated) return null;
+  if (obj.id === "beast") {
+    return obj.combatBeat !== 1 && hasTag(obj, "Semantic.Mass.Heavy") ? ENEMY_INTENTS.charge : ENEMY_INTENTS.tail;
+  }
+  if (obj.id === "guardA" && obj.combatBeat === 1 && hasTag(obj, "Semantic.Structure.Solid")) return ENEMY_INTENTS.brace;
+  return ENEMY_INTENTS.sweep;
+}
+
+function enemyOpening(obj) {
+  return obj?.type === "Enemy" && !obj.defeated ? obj.combatOpening || "" : "";
+}
+
+function canKnockFromGallery(obj) {
+  return zone().id === "Z3" && Boolean(enemyIntent(obj)) && hasTag(obj, "Semantic.Mass.Light");
+}
+
+function enemyStructureGuarded(obj, tagId) {
+  return Boolean(enemyIntent(obj) && !enemyOpening(obj) && tag(tagId)?.slot === "Structure");
+}
+
+function finishEnemyBeat(obj, opening = "") {
+  obj.combatBeat = obj.combatBeat === 1 ? 0 : 1;
+  obj.combatOpening = opening;
+  obj.breach = Boolean(opening);
+}
+
+function resolveEnemyStrike(obj, intent, opening) {
+  obj.combatOpening = "";
+  obj.breach = false;
+  if (obj.defeated || opening) return;
+  if (intent.id === "brace") {
+    finishEnemyBeat(obj, "stagger");
+    log("重击打偏盾面，露出甲片的接缝。", "good", "combat-opening");
+    return;
+  }
+  const loss = Math.min(intent.ink, state.ink);
+  state.ink -= loss;
+  finishEnemyBeat(obj);
+  log(loss ? `${obj.name} 以${intent.name}反击，损失 ${loss} 原墨。` : `${obj.name} 的${intent.name}掠过已干的墨池。`, "info", "counterattack");
+}
+
+function strikePower(obj) {
+  let damage = 16;
+  if (hasTag(obj, "Semantic.Structure.Fragile")) damage *= 1.8;
+  if (hasTag(obj, "Semantic.Structure.Solid")) damage *= 0.55;
+  if (obj.fractureWindow) damage *= 2.5;
+  if (enemyOpening(obj) === "parry") damage *= 1.5;
+  return damage;
+}
+
 function heavyStrike() {
   if (actionBlockedByRun()) return;
   const obj = selectedObject();
   if (!obj) return log("先选择目标。", "warn");
   state.metrics.heavyStrikes += 1;
-  if (obj.id === "gate" && obj.currentTags.includes("Semantic.Structure.Fragile")) {
+  if (obj.id === "gate" && !zone().complete(state) && hasTag(obj, "Semantic.Structure.Fragile")) {
     obj.destroyed = true;
     state.flags.gateDestroyed = true;
     audio.playSfx("success");
     spawnFloatingDamage("击碎", "gate", true);
     triggerScreenShake("heavy");
-    log("封文大门被击碎。", "good");
+    log("封文散开，门后亮起了灯。", "good");
     advanceThreat(6, "重击");
-    return saveAndRender();
+    return finishGateOpening();
   }
   if (obj.hp != null && !obj.defeated) {
-    let damage = 16;
+    const damage = strikePower(obj);
+    const intent = enemyIntent(obj);
+    const opening = enemyOpening(obj);
     const hadFractureWindow = Boolean(obj.fractureWindow);
-    if (obj.currentTags.includes("Semantic.Structure.Fragile")) damage *= 1.8;
-    if (obj.currentTags.includes("Semantic.Structure.Solid")) damage *= 0.55;
     if (obj.fractureWindow) {
-      damage *= 2.5;
       obj.fractureWindow = false;
       log("破裂窗口被重击引爆。", "good");
     }
@@ -1930,18 +2099,21 @@ function heavyStrike() {
     }
     const guardedCore = obj.id === "warden" && (obj.shieldLayers > 0 || !hasTag(obj, "Semantic.Structure.Fragile"));
     const previousHp = obj.hp;
+    const fell = canKnockFromGallery(obj);
     obj.hp = Math.max(guardedCore ? 1 : 0, Math.round(obj.hp - damage));
-    if (obj.id === "warden" && !guardedCore) obj.hp = 0;
-    damage = previousHp - obj.hp;
-    
-    // SFX and floating damage
+    if ((obj.id === "warden" && !guardedCore) || fell) obj.hp = 0;
+    if (fell) obj.fell = true;
+    const landedDamage = previousHp - obj.hp;
+    const impact = fell || landedDamage > 16 || hadFractureWindow;
+
     audio.playSfx("strike");
-    spawnFloatingDamage(Math.round(damage), obj.id, damage > 16 || hadFractureWindow);
-    triggerScreenShake(damage > 16 || hadFractureWindow ? "heavy" : "medium");
-    
-    log(`重击命中 ${obj.name}，造成 ${Math.round(damage)} 点伤害，并打开短暂破绽。`, "good");
+    spawnFloatingDamage(fell ? localizeText("击落") : landedDamage, obj.id, impact);
+    triggerScreenShake(impact ? "heavy" : "medium");
+
+    if (!fell) log(`重击命中 ${obj.name}，造成 ${landedDamage} 点伤害。`, "good");
     if (guardedCore && obj.hp === 1) log("护文仍在保护核心：完成反制，写入脆弱后再重击。", "warn", "boss-core-guarded");
     if (obj.hp === 0) defeatObject(obj);
+    if (intent) resolveEnemyStrike(obj, intent, opening);
     advanceThreat(6, "重击");
     return saveAndRender();
   }
@@ -1953,15 +2125,40 @@ function heavyStrike() {
 function parry() {
   if (actionBlockedByRun()) return;
   const obj = selectedObject();
-  if (!obj || obj.hp == null || obj.defeated) return log("选择一个正在战斗的敌人。", "warn");
+  const availability = canParry();
+  if (!availability.enabled) return log(availability.reason, "warn");
   state.metrics.parries += 1;
+  if (obj.id === "warden") {
+    audio.playSfx("parry");
+    log("水膜折回火浪，守卫被蒸汽吞没。", "good");
+    triggerReaction(obj, "Reaction.SteamBurst");
+    advanceThreat(4, "弹反");
+    return saveAndRender();
+  }
   obj.breach = true;
   obj.scanned = true;
+  const intent = enemyIntent(obj);
+  if (intent) finishEnemyBeat(obj, "parry");
   audio.playSfx("parry");
-  spawnFloatingDamage("PARRY", obj.id, false, true);
+  spawnFloatingDamage(localizeText("弹反"), obj.id, false, true);
   triggerScreenShake("medium");
-  log(`完美弹反 ${obj.name}，语义破绽打开。`, "good");
+  log(intent ? `弹开${intent.name}，破绽已开。可以改写甲片，或用重击反打。` : `完美弹反 ${obj.name}，语义破绽打开。`, "good");
   advanceThreat(4, "弹反");
+  saveAndRender();
+}
+
+function sidestep() {
+  if (actionBlockedByRun()) return;
+  const availability = canSidestep();
+  if (!availability.enabled) return;
+  const obj = selectedObject();
+  state.metrics.sidesteps += 1;
+  obj.scanned = true;
+  finishEnemyBeat(obj, "sidestep");
+  audio.playSfx("parry");
+  spawnFloatingDamage(localizeText("避开"), obj.id, false, true);
+  log("冲撞擦身而过。缀刺兽露出破绽，下一击不会被反击。", "good", "combat-opening");
+  advanceThreat(3, "侧闪");
   saveAndRender();
 }
 
@@ -1977,7 +2174,7 @@ function moveBlock() {
 }
 
 function pressPlate() {
-  if (actionBlockedByRun()) return;
+  if (actionBlockedByRun() || state.flags.platePressed) return;
   const obj = selectedObject();
   if (!obj || obj.id !== "block") return log("选择压机关石。", "warn");
   if (!state.flags.blockMoved) return log("先把石头推到机关板。", "warn");
@@ -2013,8 +2210,28 @@ function formBridge() {
   saveAndRender();
 }
 
+function canChooseTravelWord() {
+  const next = state.zones[state.zone + 1];
+  return Boolean(next && next.id !== "Z7" && !isCompleted() && !runIsFailed() &&
+    !state.unlockedZones.includes(next.id) && zone().complete(state));
+}
+
+function chooseTravelWord(tagId) {
+  if (!canChooseTravelWord() || (tagId && !hasInventory(tagId))) return;
+  state.travelWord = tagId;
+  saveAndRender();
+}
+
+function proceedFromZone() {
+  if (canChooseTravelWord() && state.inventory.length && !hasInventory(state.travelWord)) {
+    el.travelLoadout.querySelector("button")?.focus();
+    return;
+  }
+  nextZone();
+}
+
 function nextZone() {
-  if (actionBlockedByRun()) return;
+  if (runIsFailed() || isCompleted()) return;
   if (!zone().complete(state)) return log("当前目标还没完成。", "warn");
   if (isFinalZone()) return log("切片已经完成。", "good");
   if (state.unlockedZones.includes(state.zones[state.zone + 1].id)) {
@@ -2026,11 +2243,14 @@ function nextZone() {
   }
   recordZoneDuration("complete");
   if (state.zone < state.zones.length - 1) {
+    const carried = canChooseTravelWord() && hasInventory(state.travelWord) ? state.travelWord : "";
+    if (carried) state.metrics.wordCrossings.push({ from: zone().id, to: state.zones[state.zone + 1].id, tagId: carried });
     state.zone += 1;
     state.selectedObjectId = null;
     state.selectedTagId = null;
-    state.selectedInventoryIndex = null;
-    state.inventory = [];
+    state.selectedInventoryIndex = carried ? 0 : null;
+    state.inventory = carried ? [carried] : [];
+    state.travelWord = "";
     state.undoStack = [];
     restoreInk(4, minimumEntryInk(zone().id));
     recoverThreatOnAdvance();
@@ -2051,7 +2271,8 @@ function nextZone() {
     saveZoneCheckpoint(`${zone().id}入口检查点`);
     setInspectorOpen(false);
     audio.playSfx("success");
-    log(`进入 ${zone().id}：${zone().name}。原墨恢复少量，临时词库已归档。`, "good");
+    const crossing = carried ? `带来了「${tagName(carried)}」，其余词缀已归档。` : "临时词库已归档。";
+    log(`进入 ${zone().id}：${zone().name}。原墨已补给。${crossing}`, "good");
     saveAndRender();
   }
 }
@@ -2063,7 +2284,7 @@ function canTravelToZone(index) {
 
 function travelToZone(index) {
   if (!canTravelToZone(index) || index === state.zone) return;
-  if (!state.unlockedZones.includes(state.zones[index].id)) return nextZone();
+  if (!state.unlockedZones.includes(state.zones[index].id)) return proceedFromZone();
   if (!isCompleted()) recordZoneDuration("manual-switch");
   state.zone = index;
   state.selectedObjectId = null;
@@ -2087,6 +2308,7 @@ function resetGame() {
   state.maxInk = PROGRESSION.maxInk(state.profile, state.run);
   state.ink = state.maxInk;
   state.inventory = [];
+  state.travelWord = "";
   state.selectedObjectId = null;
   state.selectedTagId = null;
   state.selectedInventoryIndex = null;
@@ -2104,7 +2326,7 @@ function resetGame() {
   state.lastFeedback = null;
   state.completionSfxPlayed = false;
   setInspectorOpen(false);
-  log("原型已重置。", "good");
+  log("已回到庭院入口。", "good");
   saveZoneCheckpoint("Z1入口检查点");
   saveAndRender();
 }
@@ -2113,7 +2335,7 @@ function refillInk() {
   if (actionBlockedByRun()) return;
   state.ink = state.maxInk;
   state.metrics.debugRecoveries += 1;
-  log("测试工具：原墨已补满。", "warn");
+  log("原墨已补满。", "good");
   saveAndRender();
 }
 
@@ -2136,15 +2358,15 @@ function resetCurrentZone() {
   state.metrics.zoneVisits[zone().id] = (state.metrics.zoneVisits[zone().id] || 0) + 1;
   state.metrics.zoneVisitStartSec = elapsedSeconds();
   saveZoneCheckpoint(`${zone().id}重置检查点`);
-  log(`测试工具：${zone().id} 已重置。`, "warn");
+  log(`已重新布置${zone().name}。`, "good");
   saveAndRender();
 }
 
 function zoneFlagBelongsToCurrentZone(key) {
   const flagMap = {
-    Z1: ["gateDestroyed"],
-    Z2: ["blockMoved", "platePressed"],
-    Z4: ["liftMelted", "steamBurst"],
+    Z1: ["gateDestroyed", "gateUnsealed"],
+    Z2: ["blockMoved", "platePressed", "tabletDropped"],
+    Z4: ["liftMelted", "steamBurst", "icePath"],
     Z5: ["debrisGathered", "bridgeFormed", "fieldPulse"],
     Z6: ["bossDefeated"]
   };
@@ -2167,7 +2389,7 @@ function objectTypeName(type) {
     Stone: "石质对象",
     Mechanism: "机关",
     Enemy: "敌人",
-    Boss: "Boss",
+    Boss: "守卫",
     Water: "水体",
     FireSource: "火源",
     FieldPillar: "力场柱",
@@ -2240,14 +2462,16 @@ function allowed(enabled, reason) {
 function canScan() {
   const obj = selectedObject();
   if (!obj) return allowed(false, "先选择一个对象。");
+  if (obj.fell) return allowed(false, "目标已坠落，无法接近。");
   if (obj.scanned) return allowed(false, `${obj.name} 已扫描。`);
   return allowed(true, `扫描 ${obj.name}`);
 }
 
-function canExtract() {
-  const obj = selectedObject();
-  const tagId = state.selectedTagId;
+function canExtract(obj = selectedObject(), tagId = state.selectedTagId) {
+  if (isRevisiting()) return allowed(false, "回访时仅可查看对象。");
   if (!obj) return allowed(false, "先选择对象。");
+  if (obj.fell) return allowed(false, "目标已坠落，无法接近。");
+  if (obj.id === "gate" && zone().complete(state)) return allowed(false, "石门已经打开。");
   if (!obj.scanned) return allowed(false, "先扫描目标。");
   if (!tagId) return allowed(false, "先点选目标身上的词缀。");
   const mechanicHint = z5MechanicHint(obj);
@@ -2257,18 +2481,22 @@ function canExtract() {
   if (!def) return allowed(false, "未知词缀。");
   if (state.ink < extractCost(def)) return allowed(false, "原墨不足。");
   if (!canTakeVisibleTag(obj, tagId)) return allowed(false, "目标当前没有这个可剥离词缀。");
+  if (enemyStructureGuarded(obj, tagId)) return allowed(false, "结构槽未暴露，先打出破绽。");
   return allowed(true, `消耗${extractCost(def)}原墨剥离“${def.name}”。`);
 }
 
 function canInject() {
+  if (isRevisiting() || selectedObject()?.fell) return allowed(false, "当前目标无法改写。");
   const obj = selectedObject();
   const tagId = state.inventory[state.selectedInventoryIndex];
   if (!obj) return allowed(false, "先选择注入目标。");
+  if (obj.id === "gate" && zone().complete(state)) return allowed(false, "石门已经打开。");
   if (!obj.scanned) return allowed(false, "先扫描目标。");
   if (!tagId) return allowed(false, "先选择词库中的词缀。");
   const def = tag(tagId);
   if (!obj.openSlots.includes(def.slot)) return allowed(false, `${obj.name} 没有${slotName(def.slot)}。`);
   if (slotLockedForTag(obj, tagId)) return allowed(false, `${slotName(def.slot)}被锁定。`);
+  if (enemyStructureGuarded(obj, tagId)) return allowed(false, "结构槽未暴露，先打出破绽。");
   if (!def.compatible.includes(obj.type)) return allowed(false, `“${def.name}”不能作用于${objectTypeName(obj.type)}。`);
   if (state.ink < injectCost(def)) return allowed(false, "原墨不足。");
   return allowed(true, `消耗${injectCost(def)}原墨注入“${def.name}”。`);
@@ -2277,14 +2505,43 @@ function canInject() {
 function canHeavyStrike() {
   const obj = selectedObject();
   if (!obj) return allowed(false, "先选择目标。");
-  if (obj.id === "gate" && hasTag(obj, "Semantic.Structure.Fragile") && !obj.destroyed) return allowed(true, "击碎已经脆弱的大门。");
+  if (obj.id === "gate" && hasTag(obj, "Semantic.Structure.Fragile") && !zone().complete(state)) return allowed(true, "击碎已经脆弱的大门。");
+  if (canKnockFromGallery(obj)) return allowed(true, "重击会将轻盈的游兵击离断廊。");
+  const intent = enemyIntent(obj);
+  if (intent) {
+    const damage = Math.min(obj.hp, obj.hp - Math.round(obj.hp - strikePower(obj)));
+    const inkLoss = Math.min(intent.ink, state.ink);
+    let consequence = inkLoss ? `若未击倒敌人，${intent.name}会让你损失 ${inkLoss} 原墨。` : "";
+    if (intent.id === "brace") consequence = "可撞开架盾，露出破绽。";
+    if (enemyOpening(obj)) consequence = "趁破绽出手，不会被反击。";
+    return allowed(true, obj.scanned
+      ? `预计造成 ${damage} 点伤害。${damage < obj.hp ? consequence : "足以击倒目标。"}`
+      : `重击试探防御。${consequence}`);
+  }
   if (obj.hp != null && !obj.defeated) return allowed(true, "造成伤害并打开破绽。");
   return allowed(false, "当前目标不需要重击。");
 }
 
 function canParry() {
   const obj = selectedObject();
-  return allowed(Boolean(obj && obj.hp != null && !obj.defeated), obj ? "敌人才有弹反破绽。" : "先选择敌人。");
+  if (!obj || obj.hp == null || obj.defeated) return allowed(false, "先选择仍在战斗的敌人。");
+  if (obj.id === "warden") {
+    const ready = obj.shieldLayers === 3 && hasTag(obj, "Semantic.Medium.Wet");
+    return allowed(ready, ready ? "以水膜反射火浪，触发蒸汽反应。" : "第一层护文的火浪可用水膜反射。");
+  }
+  if (enemyOpening(obj)) return allowed(false, "破绽已经打开。下次重击会结束这个窗口。");
+  const intent = enemyIntent(obj);
+  if (intent?.id === "brace") return allowed(false, "敌人正在架盾，没有招式可以弹反。");
+  if (intent?.defense === "sidestep") return allowed(false, "冲撞不能弹反，可以侧闪避开。");
+  return allowed(true, intent ? `弹开${intent.name}。可改写结构，下次重击增伤且不会遭反击。` : "弹开守卫的攻势。");
+}
+
+function canSidestep() {
+  const obj = selectedObject();
+  if (!enemyOpening(obj) && enemyIntent(obj)?.defense === "sidestep") {
+    return allowed(true, "避开冲撞。下次重击不会遭反击。");
+  }
+  return allowed(false, "仅用于避开冲撞。");
 }
 
 function canMoveBlock() {
@@ -2335,7 +2592,7 @@ function z5MechanicHint(obj = selectedObject()) {
 
 function nextHint() {
   if (usesLowGuidance()) return lowGuidance();
-  if (isFinalZone()) return "切片完成。可以重置后重跑，或查看事件日志复盘路径。";
+  if (isFinalZone()) return "本轮已完成，可在通关总结中回看旅程。";
   if (zone().complete(state)) return "当前目标已达成，进入下一区域。";
 
   const z = zone().id;
@@ -2345,6 +2602,9 @@ function nextHint() {
   if (z === "Z1") {
     const gate = objectById("gate");
     const statue = objectById("statue");
+    if (obj?.id === "gate" && hasTag(gate, "Semantic.Structure.Closed") && !hasInventory("Semantic.Structure.Fragile")) {
+      return "剥离「封闭」能完整打开石门。原墨少时，可以从石像取「脆弱」来破门。";
+    }
     if (!hasInventory("Semantic.Structure.Fragile") && !hasTag(gate, "Semantic.Structure.Fragile")) {
       return statue?.scanned ? "点选“脆弱”，剥离到临时词库。" : "选择裂纹石像并扫描，找到“脆弱”。";
     }
@@ -2357,6 +2617,7 @@ function nextHint() {
   if (z === "Z2") {
     const block = objectById("block");
     const tablet = objectById("tablet");
+    if (obj?.id === "plate") return "机关板有质量槽。它自身也可以变重。";
     if (!state.flags.blockMoved) {
       if (!hasTag(block, "Semantic.Mass.Light")) {
         if (!hasInventory("Semantic.Mass.Light")) return tablet?.scanned ? "从浮字碑剥离“轻盈”。" : "选择浮字碑并扫描，获取“轻盈”。";
@@ -2375,8 +2636,10 @@ function nextHint() {
     const target = zoneObjects().find((item) => item.hp != null && !item.defeated);
     if (!target) return "敌人已清理，进入下一区域。";
     if (state.selectedObjectId !== target.id) return `选择 ${target.name}。`;
-    if (!target.breach) return "用弹反或重击打开语义破绽。";
-    if (hasTag(target, "Semantic.Structure.Solid")) return "点选“坚固”并剥离，降低敌人防御。";
+    if (!enemyOpening(target)) {
+      return enemyIntent(target)?.id === "brace" ? "盾面已经抬起，用重击撞开它。" : "可以弹开横扫，或冒着反击的风险先重击。";
+    }
+    if (hasTag(target, "Semantic.Structure.Solid")) return "趁破绽取下「坚固」，再重击。";
     return "重击敌人，利用破绽击败它。";
   }
 
@@ -2390,6 +2653,7 @@ function nextHint() {
       return lift?.scanned ? "把“过热”注入冰封升降台。" : "选择冰封升降台并扫描。";
     }
     if (!state.flags.steamBurst) {
+      if (obj?.id === "beast" && !hasInventory("Semantic.Medium.Wet")) return "冲撞可侧闪，甩尾可弹反；也可借水汽避战。";
       if (!hasInventory("Semantic.Medium.Wet")) return pool?.scanned ? "从冻结水池剥离“潮湿”。" : "选择冻结水池并扫描，获取“潮湿”。";
       return beast?.scanned ? "把“潮湿”注入带“过热”的缀刺兽，触发蒸汽爆发。" : "选择缀刺兽并扫描。";
     }
@@ -2470,31 +2734,26 @@ function zoneSteps() {
   const z = zone().id;
   if (z === "Z1") {
     return [
-      step("扫描裂纹石像", objectById("statue")?.scanned),
-      step("剥离脆弱", hasInventory("Semantic.Structure.Fragile") || hasTag(objectById("gate"), "Semantic.Structure.Fragile")),
-      step("注入大门并重击", state.flags.gateDestroyed)
+      step("调查石像或封文大门", objectById("statue")?.scanned || objectById("gate")?.scanned),
+      step("移除封印或击碎石门", zone().complete(state))
     ];
   }
   if (z === "Z2") {
     return [
-      step("取得轻盈", hasInventory("Semantic.Mass.Light") || hasTag(objectById("block"), "Semantic.Mass.Light") || state.flags.blockMoved),
-      step("推动石块", state.flags.blockMoved),
-      step("恢复沉重并压机关", state.flags.platePressed)
+      step("调查石块、浮字碑或机关板", zoneObjects().some((item) => item.scanned)),
+      step("让机关板下沉", state.flags.platePressed)
     ];
   }
   if (z === "Z3") {
-    const enemies = zoneObjects().filter((item) => item.hp != null);
     return [
-      step("扫描并打开破绽", enemies.some((item) => item.scanned && item.breach)),
-      step("改写或剥离防御", hasInventory("Semantic.Structure.Solid") || enemies.some((item) => hasTag(item, "Semantic.Structure.Fragile") || !hasTag(item, "Semantic.Structure.Solid"))),
-      step("击败游兵", enemies.every((item) => item.defeated))
+      step("清退披甲游兵", objectById("guardA")?.defeated),
+      step("清退裂甲游兵", objectById("guardB")?.defeated)
     ];
   }
   if (z === "Z4") {
     return [
       step("用过热融冰", state.flags.liftMelted),
-      step("取得潮湿", hasInventory("Semantic.Medium.Wet") || state.flags.steamBurst),
-      step("触发蒸汽爆发", state.flags.steamBurst)
+      step("穿过守兽把守的通路", state.flags.icePath || state.flags.steamBurst || objectById("beast")?.defeated)
     ];
   }
   if (z === "Z5") {
@@ -2567,6 +2826,7 @@ function recommendedObjectIds() {
   }
   if (z === "Z2") {
     const block = objectById("block");
+    if (!state.flags.blockMoved && !hasTag(block, "Semantic.Mass.Light") && hasInventory("Semantic.Mass.Heavy")) return ["plate"];
     if (!state.flags.blockMoved && !hasTag(block, "Semantic.Mass.Light") && !hasInventory("Semantic.Mass.Light")) return ["tablet"];
     return ["block"];
   }
@@ -2620,23 +2880,33 @@ function objectCanAcceptSelectedInventory(obj) {
   const tagId = state.inventory[state.selectedInventoryIndex];
   if (!tagId || !obj) return false;
   const def = tag(tagId);
-  return Boolean(obj.scanned && obj.openSlots.includes(def.slot) && !slotLockedForTag(obj, tagId) && def.compatible.includes(obj.type));
+  return Boolean(!isRevisiting() && !obj.fell && obj.scanned && obj.openSlots.includes(def.slot) && !slotLockedForTag(obj, tagId) &&
+    !enemyStructureGuarded(obj, tagId) && def.compatible.includes(obj.type));
 }
 
 function objectWriteReadiness(obj) {
   const tagId = state.inventory[state.selectedInventoryIndex];
-  if (!tagId || !obj) return { status: "", label: "" };
+  if (!tagId || !obj || isRevisiting() || obj.fell) return { status: "", label: "" };
   const def = tag(tagId);
   if (!obj.scanned) return { status: "needs-scan", label: "需扫描" };
   if (!obj.openSlots.includes(def.slot)) return { status: "blocked", label: "槽位不符" };
   if (slotLockedForTag(obj, tagId)) return { status: "blocked", label: "槽位锁定" };
+  if (enemyStructureGuarded(obj, tagId)) return { status: "blocked", label: "破绽未开" };
   if (!def.compatible.includes(obj.type)) return { status: "blocked", label: "不可作用" };
   return { status: "compatible", label: "可写入" };
 }
 
 function objectStateLabel(obj, recommendedIds) {
+  if (obj.fell) return "已坠落";
   if (obj.defeated) return "已击败";
+  if (obj.id === "tablet" && state.flags.tabletDropped) return "已落在机关板上";
+  if (obj.id === "pool" && state.flags.icePath) return "冰面可通行";
   if (obj.destroyed) return "已破坏";
+  if (enemyOpening(obj)) return "破绽已开";
+  const intent = enemyIntent(obj);
+  if (intent) return intent.name;
+  if (obj.id === "plate" && state.flags.platePressed) return "已压下";
+  if (obj.id === "block" && state.flags.blockMoved) return "已就位";
   if (recommendedIds.includes(obj.id)) return "推荐目标";
   const readiness = objectWriteReadiness(obj);
   if (readiness.label) return readiness.label;
@@ -2660,18 +2930,18 @@ function bossPhasePlanHtml(obj) {
       { layer: 2, label: "冻裂", detail: "冻结+脆弱+重击" },
       { layer: 1, label: "力场", detail: "吸引+排斥" }
     ];
-  const items = phases.map((phase) => {
+  const active = phases.find(phase => phase.layer === obj.shieldLayers);
+  const items = phases.map(phase => {
     const done = obj.shieldLayers < phase.layer;
-    const active = obj.shieldLayers === phase.layer;
-    const cls = done ? "done" : active ? "active" : "";
-    return `<span class="${cls}"><strong>${phase.label}</strong><small>${phase.detail}</small></span>`;
+    return `<li class="${done ? "done" : ""}"${phase === active ? ' aria-current="step"' : ""}>
+      ${done ? '<span aria-hidden="true">✓ </span><span class="sr-only">已完成</span>' : ""}${phase.label}
+    </li>`;
   }).join("");
-  return `
-    <div class="boss-phase-plan" aria-label="Boss护文反制顺序">
-      ${items}
-      <p>${low ? "扫描守卫和环境词源后，用结果反馈判断当前护文响应。" : bossCounterHint(obj)}</p>
-    </div>
-  `;
+  const detail = active?.detail || (obj.defeated ? "守卫已被击败。" : "结构槽已开放。");
+  return `<section class="boss-phase-plan" aria-label="守卫护文">
+    <h4>护文 <span>${obj.shieldLayers} / 3</span></h4>
+    <ol aria-label="护文反制顺序">${items}</ol><p>${detail}</p>
+  </section>`;
 }
 
 function previewForSelectedObject() {
@@ -2719,6 +2989,7 @@ function injectionPreview(obj, tagId) {
   }
   const replaced = obj.currentTags.filter((item) => tag(item)?.slot === def.slot && item !== tagId);
   lines.push(`写入槽位：${slotName(def.slot)}，消耗 ${injectCost(def)} 原墨。`);
+  if (obj.id === "plate" && tagId === "Semantic.Mass.Heavy") lines.push("机关板会因自身重量下沉，打开出口。");
   if (bossAllowsPhaseStructureWrite(obj, tagId)) lines.push("冻结裂隙允许临时写入结构词，用于打穿第二层护文。");
   if (replaced.length) lines.push(`<span class="replacement-flow">${replaced.map(tagName).join(" / ")} -> ${def.name}</span> 被替换词会回流到词库。`);
   const reactions = reactionPreview(obj, tagId);
@@ -2757,7 +3028,6 @@ function renderStatusMeters() {
   const zonePct = state.zones.length ? (state.zone + stepPct) / state.zones.length : 0;
   const timePct = Math.min(1, elapsedSeconds() / 180);
   document.body.style.setProperty("--ink-pct", `${Math.max(0, Math.min(1, state.ink / state.maxInk)) * 100}%`);
-  document.body.style.setProperty("--inventory-pct", `${Math.max(0, Math.min(1, state.inventory.length / inventoryCapacity())) * 100}%`);
   document.body.style.setProperty("--zone-pct", `${Math.max(0, Math.min(1, zonePct)) * 100}%`);
   document.body.style.setProperty("--time-pct", `${timePct * 100}%`);
   document.body.style.setProperty("--resonance-pct", `${discoveredReactionCount() / REACTION_DISCOVERIES.length * 100}%`);
@@ -2786,7 +3056,7 @@ function recoveryState() {
   if (runIsFailed()) {
     issues.push("远征稳定度耗尽，需要重新整备本轮。");
   } else if (isFinalZone() && isCompleted()) {
-    issues.push("切片已完成，可以查看总结或重开。");
+    issues.push("已抵达文库，可查看通关总结。");
   } else if (zone().complete(state)) {
     issues.push("当前目标已完成，可以进入下一区域。");
   } else {
@@ -2799,7 +3069,7 @@ function recoveryState() {
       const compatibleTargets = zoneObjects().filter((item) => objectWriteReadiness(item).status === "compatible");
       if (!compatibleTargets.length) issues.push("当前选中词还没有明确可写入目标，先扫描候选对象。");
     }
-    if (state.ink <= 1) issues.push("原墨偏低，调试模式可补墨，正式测试需找正确低消耗路径。");
+    if (state.ink <= 1) issues.push("原墨不足时，可撤销上一步，或返回本区入口检查点。");
     if (activeZoneElapsedSec() >= 90) issues.push("本区停留较久，建议复查目标、扫描器和词库。");
   }
   return {
@@ -2809,9 +3079,11 @@ function recoveryState() {
 }
 
 function renderSessionStatus() {
-  const saveNotice = state.storageConflict ? "存档已在另一窗口更新。刷新页面可继续保存。" : "";
+  const saveNotice = state.storageConflict ? "另一窗口更新了存档。刷新后可从最新进度继续。" : state.storageNotice;
   el.sessionStatus.classList.toggle("hidden", !saveNotice);
-  el.sessionStatus.textContent = saveNotice;
+  el.sessionStatus.innerHTML = saveNotice
+    ? `<div><strong>本地存档</strong><p>${escapeHtml(saveNotice)}</p></div>${state.storageConflict ? '<a href="">重新载入</a>' : ""}`
+    : "";
   el.undoBtn.disabled = !canUndo();
   el.undoBtn.title = canUndo() ? state.undoStack[0].label : "没有可撤销的语义操作。";
   el.checkpointBtn.disabled = !canRestoreCheckpoint();
@@ -2885,14 +3157,15 @@ function renderChroniclePanel() {
 
 function render() {
   const active = document.activeElement;
-  const focusAttribute = ["data-index", "data-object-id", "data-action", "data-tag", "data-zone", "data-chronicle-action", "data-upgrade", "data-completion-action"]
+  const focusAttribute = ["data-inspect", "data-travel-word", "data-index", "data-object-id", "data-action", "data-tag", "data-take-tag", "data-zone", "data-chronicle-action", "data-upgrade", "data-completion-action"]
     .find((attribute) => active?.hasAttribute(attribute));
   renderModeControls();
   ensureGuidedSelection();
   renderStatusMeters();
   el.inkValue.textContent = state.ink;
   el.inventoryCount.textContent = `${state.inventory.length}/${inventoryCapacity()}`;
-  el.zoneIndex.textContent = zone().id;
+  el.zoneIndex.textContent = `第${"一二三四五六七"[state.zone]}章`;
+  document.getElementById("playModeBtn").textContent = TEST_MODES[state.testMode];
   el.elapsedValue.textContent = formatTime(state.metrics.completedAt ?? elapsedSeconds());
   if (el.resonanceValue) el.resonanceValue.textContent = `${discoveredReactionCount()}/${REACTION_DISCOVERIES.length}`;
   el.nextHint.textContent = nextHint();
@@ -2905,6 +3178,7 @@ function render() {
   renderStage();
   renderInspector();
   renderInventory();
+  syncInspectorActions();
   renderLog();
   const report = buildReport();
   renderMetrics(report);
@@ -2962,7 +3236,7 @@ function renderDecisionStrip() {
 function renderResultPulse() {
   if (!el.resultPulse) return;
   const feedback = state.lastFeedback || {
-    message: "选择场景对象后开始扫描。",
+    message: "点选场景中的标记，调查庭院。",
     type: "info",
     category: "initial",
     zone: zone().id,
@@ -2972,7 +3246,7 @@ function renderResultPulse() {
     good: "已生效",
     warn: "需调整",
     bad: "被阻塞",
-    info: "等待操作"
+    info: "线索"
   };
   const tone = ["good", "warn", "bad"].includes(feedback.type) ? feedback.type : "info";
   const recovery = recoveryState();
@@ -2982,10 +3256,10 @@ function renderResultPulse() {
       ? (recovery.primary || "当前状态仍可继续，观察对象槽位和词库。")
       : zone().complete(state)
         ? "目标已达成，推进到下一段。"
-        : nextHint();
+        : usesLowGuidance() ? "" : nextHint();
   el.resultPulse.className = `result-pulse ${tone}`;
   el.resultPulse.innerHTML = `
-    <span>${titleMap[tone]}</span>
+    <span>${feedback.category === "counterattack" ? "反击" : titleMap[tone]}</span>
     <strong>${escapeHtml(feedback.message)}</strong>
     <small>${detail}</small>
   `;
@@ -3002,8 +3276,13 @@ function renderZones() {
     button.type = "button";
     button.dataset.zone = z.id;
     button.disabled = !canTravelToZone(index);
-    button.style.setProperty("--zone-item-pct", `${index / Math.max(1, state.zones.length - 1) * 100}%`);
-    button.innerHTML = `<strong>${z.id} ${z.name}</strong><span>${complete ? "已达成" : active ? "进行中" : "待进入"}</span><i></i>`;
+    if (active) button.setAttribute("aria-current", "location");
+    const progress = complete ? "已达成" : active ? "进行中" : unlocked ? "可前往" : "未解锁";
+    button.innerHTML = `
+      <span class="zone-art" aria-hidden="true"></span>
+      <span class="zone-name"><small>${z.id}</small><strong>${z.name}</strong></span>
+      <span class="zone-progress">${progress}</span>
+    `;
     button.addEventListener("click", () => {
       setMapOpen(false);
       travelToZone(index);
@@ -3022,29 +3301,33 @@ function renderSteps() {
   }).join("");
 }
 
-function objectArtwork(obj) {
-  if (obj.id === "archive") return "archive";
-  if (obj.id === "statue") return "statue";
-  if (obj.id === "lift" || obj.id === "bossIce") return "ice";
-  return { Door: "gate", Water: "ice", FireSource: "fire", FieldPillar: "field", Boss: "guard", Enemy: "guard" }[obj.type] || "stone";
-}
-
 function renderStage() {
-  el.zoneTitle.textContent = zone().name;
-  el.stageHero.dataset.zone = zone().id;
+  const currentZone = zone();
+  const gateOpened = currentZone.id === "Z1" && currentZone.complete(state);
+  if (el.stageHero.dataset.zone !== currentZone.id) {
+    for (const animation of el.stageHero.querySelector(".scene-scan")?.getAnimations?.() ?? []) animation.cancel();
+    document.getElementById("effectsContainer")?.replaceChildren?.();
+  }
+  el.zoneTitle.textContent = currentZone.name;
+  el.stageHero.dataset.zone = currentZone.id;
+  el.stageHero.dataset.landmarks = String(["Z1", "Z2", "Z3", "Z5", "Z7"].includes(currentZone.id));
+  el.stageHero.dataset.complete = String(Boolean(currentZone.complete(state)));
+  el.stageHero.dataset.failed = String(runIsFailed());
   el.stageRunStatus.classList.toggle("hidden", !isExpedition());
   el.stageRunStatus.textContent = isExpedition() ? `远征 ${state.run.cycle} · 威胁 ${state.run.threat}/100 · 稳定度 ${state.run.integrity}/3` : "";
-  el.sceneCount.textContent = `${zoneObjects().length} 个对象`;
-  el.zoneObjective.textContent = usesLowGuidance() ? (LOW_OBJECTIVES[zone().id] || zone().objective) : zone().objective;
+  el.zoneObjective.textContent = gateOpened
+    ? "门后的通路已经打开。"
+    : usesLowGuidance() ? (LOW_OBJECTIVES[currentZone.id] || currentZone.objective) : currentZone.objective;
   el.sceneMap.innerHTML = "";
   const recommendedIds = recommendedObjectIds();
   zoneObjects().forEach((obj) => {
+    const canEnterGate = gateOpened && obj.id === "gate" && !runIsFailed();
     const readiness = objectWriteReadiness(obj);
     const button = document.createElement("button");
     button.className = [
       "object-token",
       ...obj.currentTags.map((tagId) => `semantic-${tagId.split(".").slice(-1)[0].toLowerCase()}`),
-      obj.id === state.selectedObjectId ? "selected" : "",
+      canEnterGate ? "passage" : obj.id === state.selectedObjectId ? "selected" : "",
       recommendedIds.includes(obj.id) ? "recommended" : "",
       objectCanAcceptSelectedInventory(obj) ? "compatible" : "",
       readiness.status === "blocked" ? "write-blocked" : "",
@@ -3054,7 +3337,7 @@ function renderStage() {
     ].filter(Boolean).join(" ");
     button.type = "button";
     button.dataset.objectId = obj.id;
-    button.setAttribute("aria-pressed", obj.id === state.selectedObjectId ? "true" : "false");
+    if (!canEnterGate) button.setAttribute("aria-pressed", String(obj.id === state.selectedObjectId));
     const tags = obj.currentTags.map((tagId) => {
       const def = tag(tagId);
       if (obj.scanned) {
@@ -3069,10 +3352,11 @@ function renderStage() {
     const shieldPips = obj.shieldLayers != null && !obj.defeated
       ? `<span class="shield-pips" aria-label="护文">${[0, 1, 2].map((pip) => `<i class="${pip < obj.shieldLayers ? "on" : ""}"></i>`).join("")}</span>`
       : "";
-    const stateLabel = objectStateLabel(obj, recommendedIds);
+    const stateLabel = canEnterGate ? "穿过石门 →" : objectStateLabel(obj, recommendedIds);
+    button.dataset.idle = String(stateLabel === "可扫描");
     button.setAttribute("aria-label", `${obj.name}，${objectTypeName(obj.type)}，${stateLabel}`);
     button.innerHTML = `
-      <span class="object-art" data-art="${objectArtwork(obj)}" aria-hidden="true"></span>
+      <span class="object-art" aria-hidden="true"></span>
       <span class="object-info">
         <span class="type-badge">${objectTypeName(obj.type)}</span>
         <strong>${obj.name}</strong>
@@ -3082,30 +3366,94 @@ function renderStage() {
         <span class="mini-tags">${tags}</span>
       </span>
     `;
-    button.addEventListener("click", () => selectObject(obj.id));
+    button.addEventListener("click", canEnterGate ? proceedFromZone : () => selectObject(obj.id));
     el.sceneMap.appendChild(button);
   });
   renderActions();
 }
 
+function renderCombatReadout() {
+  const obj = selectedObject();
+  const intent = enemyIntent(obj);
+  const visible = Boolean(intent && !isRevisiting() && !runIsFailed() && !isCompleted());
+  el.combatReadout.classList.toggle("hidden", !visible);
+  const opening = visible && enemyOpening(obj);
+  el.combatReadout.dataset.intent = visible ? opening || intent.id : "";
+  if (!visible) {
+    el.combatReadout.innerHTML = "";
+    return;
+  }
+  const name = opening ? ENEMY_OPENINGS[opening] : intent.name;
+  const move = opening ? "破绽" : "敌势";
+  el.combatReadout.innerHTML = `<span>${move}</span><strong>${name}</strong><small>${canHeavyStrike().reason}</small>`;
+}
+
+function renderTravelLoadout() {
+  const panel = el.travelLoadout;
+  const visible = canChooseTravelWord() && state.inventory.length > 0;
+  panel.classList.toggle("hidden", !visible);
+  panel.innerHTML = "";
+  if (!visible) return;
+  panel.innerHTML = `<p><strong>选一个词带走</strong><small>前往${state.zones[state.zone + 1].name}</small></p>
+    <div class="travel-words">${[...new Set(state.inventory)].map(id =>
+      `<button type="button" class="travel-word quiet-button" data-travel-word="${id}" aria-pressed="${id === state.travelWord}">${tagName(id)}</button>`
+    ).join("")}<button type="button" class="travel-skip" data-travel-skip>空手前往</button></div>`;
+  panel.querySelectorAll("[data-travel-word]").forEach(button =>
+    button.addEventListener("click", () => chooseTravelWord(button.dataset.travelWord)));
+  panel.querySelector("[data-travel-skip]")?.addEventListener("click", () => {
+    state.travelWord = "";
+    nextZone();
+  });
+}
+
 function renderActions() {
+  renderTravelLoadout();
+  renderCombatReadout();
+  const heldTag = tag(state.inventory[state.selectedInventoryIndex]);
+  const carriedWord = document.getElementById("carriedWord");
+  if (carriedWord) {
+    const canCarry = heldTag && !isCompleted() && !runIsFailed() && !zone().complete(state);
+    const target = canCarry && canInject().enabled ? selectedObject() : null;
+    carriedWord.classList.toggle("hidden", !canCarry);
+    carriedWord.innerHTML = canCarry ? `<span>手持词缀</span><strong>${heldTag.name}</strong><small>${target ? `目标：${target.name}` : "点选要写入的目标"}</small>` : "";
+  }
   if (isCompleted()) {
-    el.contextActions.innerHTML = "";
-    el.actionHelp.textContent = "本轮已完成。可在地图回看区域，或从通关总结开启下一轮。";
+    el.contextActions.innerHTML = '<a class="action-button primary" href="#completionPanel">查看通关总结 ↘</a>';
+    el.actionHelp.textContent = "可从地图回访已探索的区域。";
     return;
   }
   if (runIsFailed()) {
-    el.contextActions.innerHTML = "";
-    const restart = document.createElement("button");
-    restart.className = "action-button primary ready expedition-restart";
-    restart.type = "button";
-    restart.textContent = "重新整备远征";
-    restart.addEventListener("click", resetGame);
-    el.contextActions.appendChild(restart);
-    el.actionHelp.textContent = "稳定度已经耗尽。本轮进度终止，但永久铭文和回声残片不会丢失。";
+    el.contextActions.innerHTML = `
+      <div class="run-ending">
+        <div><p>第 ${state.run.cycle} 轮 · 稳定度 0/3</p><h3>远征止步于此</h3><p>回声残片和永久铭文已保留。</p></div>
+        <button class="action-button primary ready expedition-restart" type="button">重新整备远征</button>
+      </div>
+    `;
+    el.contextActions.querySelector(".expedition-restart")?.addEventListener("click", resetGame);
+    el.actionHelp.textContent = "";
+    return;
+  }
+  if (isRevisiting()) {
+    el.contextActions.innerHTML = '<button type="button" class="action-button primary" data-return-frontier>返回当前进度</button>';
+    el.contextActions.querySelector("button")?.addEventListener("click", () => travelToZone(state.zones.findIndex(z => z.id === state.unlockedZones.at(-1))));
+    el.actionHelp.textContent = "正在回访已通过的区域。";
     return;
   }
   const canAdvance = zone().complete(state);
+  if (!selectedObject() && !canAdvance) {
+    el.contextActions.innerHTML = "";
+    const openList = document.createElement("button");
+    openList.type = "button";
+    openList.className = "action-button open-investigation";
+    openList.textContent = "调查对象";
+    openList.addEventListener("click", () => {
+      setInspectorOpen(true);
+      el.inspector.querySelector("[data-inspect]")?.focus();
+    });
+    el.contextActions.appendChild(openList);
+    el.actionHelp.textContent = "";
+    return;
+  }
   const scanState = canScan();
   const actions = [
     action("扫描", scanSelected, scanState.enabled ? "primary" : "", scanState, "观察"),
@@ -3114,6 +3462,8 @@ function renderActions() {
     action("重击", heavyStrike, "", canHeavyStrike(), "战斗"),
     action("弹反破绽", parry, "", canParry(), "战斗")
   ];
+  const sidestepState = canSidestep();
+  if (sidestepState.enabled) actions.push(action("侧闪", sidestep, "", sidestepState, "战斗"));
   if (zone().id === "Z2") {
     actions.push(action("推动石块", moveBlock, "", canMoveBlock(), "机关"), action("压住机关", pressPlate, "", canPressPlate(), "机关"));
   }
@@ -3126,7 +3476,7 @@ function renderActions() {
     );
   }
   const advanceLabel = isFinalZone() && canAdvance ? "切片完成" : canAdvance ? "进入下一区域" : "目标未完成";
-  actions.push(action(advanceLabel, nextZone, canAdvance && !isFinalZone() ? "primary" : "", { enabled: canAdvance && !isFinalZone(), reason: isFinalZone() ? "已经到达结尾。" : "完成当前目标后可进入下一段。" }, "推进"));
+  actions.push(action(advanceLabel, proceedFromZone, canAdvance && !isFinalZone() ? "primary" : "", { enabled: canAdvance && !isFinalZone(), reason: isFinalZone() ? "已经到达结尾。" : "完成当前目标后可进入下一段。" }, "推进"));
   el.contextActions.innerHTML = "";
   const disabledReasons = [];
   const visibleActions = actions.filter((item) => shouldShowAction(item));
@@ -3145,28 +3495,28 @@ function renderActions() {
       const button = document.createElement("button");
       button.className = `action-button${label === preferred?.label ? " primary" : ""}${actionState.enabled ? " ready" : ""}`;
       button.type = "button";
-      button.textContent = label;
+      let visibleLabel = label;
+      if (label === "注入选中词" && heldTag) visibleLabel = `写入「${heldTag.name}」`;
+      if (label === "进入下一区域" && hasInventory(state.travelWord)) visibleLabel = `携「${tagName(state.travelWord)}」出发`;
+      button.textContent = visibleLabel;
       button.dataset.action = label;
       button.disabled = !actionState.enabled;
       button.title = actionState.reason;
-      button.setAttribute("aria-label", `${label}：${actionState.reason}`);
+      button.setAttribute("aria-label", `${visibleLabel}：${actionState.reason}`);
       if (!actionState.enabled) disabledReasons.push(`${label}：${actionState.reason}`);
       button.addEventListener("click", fn);
       wrapper.appendChild(button);
     });
     el.contextActions.appendChild(wrapper);
   });
-  if (usesLowGuidance()) {
-    el.actionHelp.textContent = selectedObject() && disabledReasons.length ? disabledReasons.slice(0, 1).join("；") : "";
-    return;
-  }
-  const recovery = recoveryState();
-  el.actionHelp.textContent = recovery.primary || (disabledReasons.length ? disabledReasons.slice(0, 2).join("；") : "当前选择已有可执行操作。");
+  el.actionHelp.textContent = !preferred && disabledReasons.length ? disabledReasons[0] : "";
 }
 
 function shouldShowAction(item) {
-  if (item.group === "推进" && !item.state.enabled) return false;
-  if (item.group === "战斗" && !item.state.enabled && !zoneObjects().some((obj) => obj.hp != null)) return false;
+  if (item.group === "推进" && (!item.state.enabled || (canChooseTravelWord() && state.inventory.length && !hasInventory(state.travelWord)))) return false;
+  if (zone().id === "Z1" && zone().complete(state) && item.group !== "推进") return false;
+  if (!item.state.enabled && item.group !== "战斗") return false;
+  if (item.group === "战斗" && !item.state.enabled && (selectedObject()?.hp == null || selectedObject()?.defeated)) return false;
   const anyScanned = zoneObjects().some((objectItem) => objectItem.scanned);
   const firstScanTeaching = state.testMode === "guided" && zone().id === "Z1" && !anyScanned;
   if (!firstScanTeaching) return true;
@@ -3175,55 +3525,97 @@ function shouldShowAction(item) {
 
 function renderInspector() {
   const obj = selectedObject();
+  el.inspectorPanel.dataset.zone = zone().id;
   el.selectedHint.textContent = obj ? obj.name : "未选择对象";
   if (!obj) {
     el.inspector.className = "inspector-empty";
-    el.inspector.textContent = "选择场景中的对象，然后扫描。";
+    el.inspector.innerHTML = "";
+    if (!zone().complete(state) && !runIsFailed() && !isRevisiting()) {
+      const list = document.createElement("div");
+      list.className = "investigation-list";
+      for (const item of zoneObjects()) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "action-button inspect-choice";
+        button.dataset.inspect = item.id;
+        button.setAttribute("aria-label", `调查${item.name}`);
+        button.innerHTML = `<span class="specimen-art" data-specimen="${item.id}" aria-hidden="true"></span>
+          <span><small>${objectTypeName(item.type)}</small><strong>${item.name}</strong></span>`;
+        button.addEventListener("click", () => {
+          selectObject(item.id);
+          if (!window.matchMedia?.(INSPECTOR_DRAWER_QUERY).matches) el.contextActions.querySelector("button:enabled")?.focus();
+        });
+        list.appendChild(button);
+      }
+      el.inspector.appendChild(list);
+    }
+    const observation = document.createElement("p");
+    observation.className = "scene-observation";
+    observation.textContent = zone().reflection;
+    el.inspector.appendChild(observation);
     return;
   }
   el.inspector.className = "";
+  const observations = {
+    gate: "朱绦封着门闩。门闩和石门是两回事。",
+    statue: "裂纹沿着石像胸口往下延伸。",
+    plate: "机关板旁的配重槽空着。",
+    tablet: "石碑悬在机关板上方，碑底的浮空机关仍在运转。",
+    pool: "薄冰一直延伸到升降台。缀刺兽守在岸上。",
+    block: "石块有提环，机关板就在对面。",
+    beast: "它守在通路上。水汽可以遮断它的视线。"
+  };
+  const clue = observations[obj.id];
+  const portrait = `<span class="specimen-art" data-specimen="${obj.id}" aria-hidden="true"></span>`;
+  const combat = enemyIntent(obj)
+    ? `<p class="combat-health">耐久 <strong>${obj.hp} / ${obj.maxHp}</strong></p>`
+    : "";
   if (!obj.scanned) {
     el.inspector.innerHTML = `
       <div class="object-title-row">
-        <div>
+        ${portrait}<div>
           <h3>${obj.name}</h3>
-          <p class="hint">${objectTypeName(obj.type)} / 未扫描</p>
+          <p class="hint">${objectTypeName(obj.type)}</p>
         </div>
-        <span class="hint">未知</span>
+        <span class="hint">未扫描</span>
       </div>
-      <div class="scan-gate">
-        <strong>扫描后显示词缀、槽位和取写成本。</strong>
-        <span>当前只知道对象轮廓。先执行“扫描”，再决定剥离、注入或攻击。</span>
-      </div>
+      <p class="scan-gate">${clue || "扫描后可查看词缀、槽位和取写成本。"}</p>
+      ${combat}
     `;
     return;
   }
   const tagButtons = obj.currentTags.map((tagId) => {
     const def = tag(tagId);
+    const detail = obj.id === "gate" && tagId === "Semantic.Structure.Closed"
+      ? "取下封印，石门会完整开启。"
+      : tagCause(tagId);
     const selected = tagId === state.selectedTagId ? " selected" : "";
-    return `<button class="tag-chip${selected}" data-tag="${tagId}" type="button" title="${tagCause(tagId)}"><span style="background:${def?.color || "#ddd"}"></span><strong>${def?.name || tagId}</strong><small>${tagCause(tagId)}</small><em class="chip-cost">取${def ? extractCost(def) : "-"}</em></button>`;
+    const take = canExtract(obj, tagId);
+    const quickTake = !isCompleted() && !runIsFailed() && def && !(obj.id === "gate" && zone().complete(state))
+      ? `<button class="quiet-button take-tag" data-take-tag="${tagId}" type="button" ${take.enabled ? "" : "disabled"} title="${take.reason}" aria-label="剥离${def.name}，消耗 ${extractCost(def)} 原墨">取词 · ${extractCost(def)}墨</button>`
+      : "";
+    return `<div class="tag-item"><button class="tag-chip${selected}" data-tag="${tagId}" type="button" title="${detail}"><span style="background:${def?.color || "#ddd"}"></span><strong>${def?.name || tagId}</strong><small>${detail}</small></button>${quickTake}</div>`;
   }).join("");
-  const lockText = obj.lockedSlots.length ? `锁定：${obj.lockedSlots.map(slotName).join(" / ")}` : "无锁定槽";
+  const lockText = obj.lockedSlots.length ? ` · 锁定${obj.lockedSlots.map(slotName).join(" / ")}` : "";
   const preview = previewForSelectedObject();
+  const showPreview = !obj.fell && !(obj.id === "gate" && zone().complete(state)) && (state.selectedTagId || state.inventory[state.selectedInventoryIndex]);
   const previewLines = preview.lines.map((line) => `<li>${line}</li>`).join("");
   const slotItems = obj.openSlots.map((slot) => {
-    const locked = obj.lockedSlots.includes(slot);
-    return `<span class="slot-chip ${locked ? "locked" : ""}">${slotName(slot)}${locked ? " / 锁定" : ""}</span>`;
+    const guarded = slot === "Structure" && enemyIntent(obj) && !enemyOpening(obj);
+    const locked = obj.lockedSlots.includes(slot) || guarded;
+    return `<span class="slot-chip ${locked ? "locked" : ""}">${slotName(slot)}${guarded ? " / 等待破绽" : locked ? " / 锁定" : ""}</span>`;
   }).join("");
-  const bossGauge = obj.shieldLayers != null
-    ? `<div class="boss-gauge" aria-label="Boss护文"><span style="width:${Math.max(0, Math.min(100, obj.shieldLayers / 3 * 100))}%"></span><strong>护文 ${obj.shieldLayers}/3</strong></div>`
-    : "";
   const bossPhasePlan = bossPhasePlanHtml(obj);
   el.inspector.innerHTML = `
     <div class="object-title-row">
-      <div>
+      ${portrait}<div>
         <h3>${obj.name}</h3>
-        <p class="hint">${objectTypeName(obj.type)} / ${lockText}</p>
+        <p class="hint">${objectTypeName(obj.type)}${lockText}</p>
       </div>
       <span class="hint">${obj.scanned ? "已扫描" : "未扫描"}</span>
     </div>
-    ${bossGauge}
     ${bossPhasePlan}
+    ${combat}
     <div class="scan-section">
       <span class="section-label">当前词缀</span>
       <div class="tag-list">${tagButtons || "<span class='hint'>无显性词缀</span>"}</div>
@@ -3233,24 +3625,29 @@ function renderInspector() {
       <div class="slot-list">${slotItems || "<span class='hint'>无开放槽位</span>"}</div>
       ${obj.breach ? "<p class='scan-note'>语义破绽已打开，可优先处理结构词。</p>" : ""}
     </div>
-    <div class="preview-box ${preview.tone}">
+    ${showPreview ? `<div class="preview-box ${preview.tone}">
       <div class="preview-title">${preview.title}</div>
       <ul>${previewLines}</ul>
-    </div>
+    </div>` : ""}
   `;
   el.inspector.querySelectorAll(".tag-chip").forEach((button) => {
     button.addEventListener("click", () => selectTag(button.dataset.tag));
   });
+  el.inspector.querySelectorAll("[data-take-tag]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedTagId = button.dataset.takeTag;
+      extractSelectedTag();
+    });
+  });
 }
 
 function renderInventory() {
-  el.clearInventoryBtn.disabled = state.inventory.length === 0;
+  el.clearInventoryBtn.disabled = !state.inventory.length || isRevisiting() || isCompleted() || runIsFailed();
   el.inventoryList.innerHTML = "";
   if (!state.inventory.length) {
     el.inventoryList.innerHTML = `
       <div class="empty-state">
-        <strong>词库为空</strong>
-        <span>从对象剥离的词缀会收录在这里。</span>
+        <span>尚未收录词缀</span>
       </div>
     `;
     return;
@@ -3273,6 +3670,12 @@ function renderInventory() {
 function inventoryRouteHint(tagId) {
   const def = tag(tagId);
   if (!def || usesLowGuidance()) return tagCause(tagId);
+  const readyTargets = zoneObjects().filter((obj) => {
+    return obj.scanned && obj.openSlots.includes(def.slot) && !slotLockedForTag(obj, tagId) &&
+      !enemyStructureGuarded(obj, tagId) && def.compatible.includes(obj.type);
+  });
+  const target = selectedObject();
+  if (readyTargets.includes(target)) return `可写：${target.name}`;
   const recommendedTargets = recommendedObjectIds()
     .map(objectById)
     .filter((obj) => obj && obj.openSlots.includes(def.slot) && def.compatible.includes(obj.type));
@@ -3281,9 +3684,6 @@ function inventoryRouteHint(tagId) {
     const prefix = scannedTargets.length ? "可写" : "先扫描";
     return `${prefix}：${recommendedTargets.map((obj) => obj.name).slice(0, 2).join(" / ")}`;
   }
-  const readyTargets = zoneObjects().filter((obj) => {
-    return obj.scanned && obj.openSlots.includes(def.slot) && !obj.lockedSlots.includes(def.slot) && def.compatible.includes(obj.type);
-  });
   if (readyTargets.length) return `可写：${readyTargets.map((obj) => obj.name).slice(0, 2).join(" / ")}`;
   const scanTargets = zoneObjects().filter((obj) => {
     return !obj.scanned && obj.openSlots.includes(def.slot) && def.compatible.includes(obj.type);
@@ -3295,7 +3695,7 @@ function inventoryRouteHint(tagId) {
 function renderLog() {
   el.eventLog.innerHTML = state.log.map((item) => `
     <div class="event-line ${escapeHtml(item.type)}">
-      <span>${formatTime(item.t ?? 0)} / ${escapeHtml(item.zone || zone().id)}</span>
+      <span>${formatTime(item.t ?? 0)} · ${escapeHtml(item.zone || zone().id)}</span>
       <strong>${escapeHtml(item.message)}</strong>
     </div>
   `).join("") || "<span class='hint'>还没有事件。</span>";
@@ -3336,7 +3736,6 @@ function calculateEndingBadges(report) {
   const reactionTypes = new Set(Object.entries(report.metrics.reactionCounts).filter(([k,v]) => v > 0).map(([k,v]) => k)).size;
   if (reactionTypes >= 3 || report.metrics.reactions >= 4) {
     badges.push({
-      icon: "🧪",
       name: "反应大师",
       desc: "成功触发了全部三种核心语义组合反应。"
     });
@@ -3345,7 +3744,6 @@ function calculateEndingBadges(report) {
   // Ink Efficiency
   if (report.ink >= 10) {
     badges.push({
-      icon: "✒️",
       name: "省墨专家",
       desc: "通关时仍保留 10 点以上的充足原墨。"
     });
@@ -3354,7 +3752,6 @@ function calculateEndingBadges(report) {
   // Parry Master
   if (report.metrics.parries >= 2) {
     badges.push({
-      icon: "🛡️",
       name: "完美防卫者",
       desc: "在断廊战斗中成功执行了两次完美弹反。"
     });
@@ -3363,7 +3760,6 @@ function calculateEndingBadges(report) {
   // No Undo
   if (report.metrics.undoUses === 0 && report.metrics.checkpointRestores === 0) {
     badges.push({
-      icon: "⏳",
       name: "无瑕修正者",
       desc: "没有使用任何撤销或检查点恢复通过全关。"
     });
@@ -3371,7 +3767,6 @@ function calculateEndingBadges(report) {
 
   if (badges.length === 0) {
     badges.push({
-      icon: "📜",
       name: "合格异墨者",
       desc: "成功克服故障谜题，跨入修正文库门槛。"
     });
@@ -3394,6 +3789,7 @@ function renderCompletionPanel(report) {
   }
 
   const longestDuration = Math.max(1, ...report.zoneDurations.map((item) => item.durationSec));
+  const detailsOpen = el.completionPanel.querySelector(".completion-details")?.open;
   const verdict = completionVerdict(report);
   const zoneRows = report.zoneDurations.map((item) => `
     <tr>
@@ -3427,7 +3823,7 @@ function renderCompletionPanel(report) {
   const badges = calculateEndingBadges(report);
   const badgeHtml = badges.map(b => `
     <div class="ending-badge">
-      <span class="icon">${b.icon}</span>
+      <span class="icon" aria-hidden="true">${b.name[0]}</span>
       <span class="name">${b.name}</span>
       <span class="desc">${b.desc}</span>
     </div>
@@ -3435,79 +3831,87 @@ function renderCompletionPanel(report) {
 
   el.completionPanel.className = "completion-panel";
   el.completionPanel.innerHTML = `
-    <div class="completion-head">
-      <div>
+    <div class="completion-head" data-zone="Z7">
+      <div class="completion-title">
         <p class="label">通关总结</p>
-        <h2>断句庭院切片完成</h2>
+        <h2>抵达修正文库</h2>
+        <p>本轮用时 ${formatTime(report.elapsedSec)} · 获得 ${state.run.lastReward || 0} 枚回声残片</p>
       </div>
-      <div class="completion-actions">
-        <button class="quiet-button expedition-launch" type="button" data-completion-action="start-expedition">下一轮远征</button>
-        <button class="quiet-button" type="button" data-completion-action="restart-guided">引导重开</button>
-        <button class="quiet-button" type="button" data-completion-action="restart-low">低引导重开</button>
-        <button class="quiet-button" type="button" data-completion-action="report">导出报告</button>
+      <div class="completion-grade" aria-label="评级 ${report.audit.grade}，总分 ${report.audit.score}">
+        <strong>${report.audit.grade}</strong><span>${report.audit.score} 分</span>
       </div>
     </div>
-    <div class="summary-grid">
-      ${metricHtml("总用时", formatTime(report.elapsedSec))}
-      ${metricHtml("最长区", `${report.summary.longestZone.zone} ${formatTime(report.summary.longestZone.durationSec)}`)}
-      ${metricHtml("误操作", report.summary.totalMistakes)}
-      ${metricHtml("质量", `${report.audit.grade} ${report.audit.score}`)}
-      ${metricHtml("组合反应", report.metrics.reactions)}
-      ${metricHtml("Boss语义", report.metrics.bossSemanticActions)}
-      ${metricHtml("护文反制", report.metrics.bossPhaseCounters?.length ?? 0)}
-      ${metricHtml("检查点", report.metrics.checkpointRestores)}
-      ${metricHtml("撤销", report.metrics.undoUses)}
-      ${metricHtml("本轮残片", `+${state.run.lastReward || 0} ◈`)}
+    <div class="completion-actions">
+      <button class="quiet-button expedition-launch" type="button" data-completion-action="start-expedition">下一轮远征</button>
+      <button class="quiet-button" type="button" data-completion-action="restart-guided">引导重开</button>
+      <button class="quiet-button" type="button" data-completion-action="restart-low">探索重开</button>
+      <button class="quiet-button" type="button" data-completion-action="report">导出报告</button>
     </div>
-    
     <div class="completion-badges-section">
-      <p class="label">异墨勋章</p>
+      <h3>异墨勋章</h3>
       <div class="ending-badge-list">${badgeHtml}</div>
     </div>
+    <details class="completion-details"${detailsOpen ? " open" : ""}>
+      <summary>本轮复盘与明细</summary>
+      <div class="completion-details-body">
+        <div class="summary-grid">
+          ${metricHtml("总用时", formatTime(report.elapsedSec))}
+          ${metricHtml("最长区", `${report.summary.longestZone.zone} ${formatTime(report.summary.longestZone.durationSec)}`)}
+          ${metricHtml("误操作", report.summary.totalMistakes)}
+          ${metricHtml("质量", `${report.audit.grade} ${report.audit.score}`)}
+          ${metricHtml("组合反应", report.metrics.reactions)}
+          ${metricHtml("Boss语义", report.metrics.bossSemanticActions)}
+          ${metricHtml("护文反制", report.metrics.bossPhaseCounters?.length ?? 0)}
+          ${metricHtml("检查点", report.metrics.checkpointRestores)}
+          ${metricHtml("撤销", report.metrics.undoUses)}
+          ${metricHtml("本轮残片", `+${state.run.lastReward || 0} ◈`)}
+        </div>
 
-    <div class="completion-verdict ${verdict.tone}">
-      <strong>${verdict.title}</strong>
-      <span>${verdict.detail}</span>
-    </div>
-    <div class="completion-audit">
-      <div>
-        <p class="label">反应覆盖</p>
-        <div class="reaction-ledger">${reactionRows}</div>
-      </div>
-      <div>
-        <p class="label">审计提示</p>
-        <ul>${auditRisks}</ul>
-      </div>
-    </div>
-    <div class="completion-audit experience-review">
-      <div>
-        <p class="label">体验摩擦</p>
-        <ul>${frictionRows}</ul>
-      </div>
-      <div>
-        <p class="label">整改线索</p>
-        <ul>${fixRows}</ul>
-      </div>
-      <div>
-        <p class="label">失败账本</p>
-        <div class="reaction-ledger">${failureRows}</div>
-      </div>
-    </div>
-    <div class="completion-audit playtest-review">
-      <div>
-        <p class="label">真人试玩追问</p>
-        <ul>${playtestPrompts}</ul>
-      </div>
-      <div>
-        <p class="label">自动风险信号</p>
-        <ul>${playtestRisks}</ul>
-      </div>
-    </div>
+        <div class="completion-verdict ${verdict.tone}">
+          <strong>${verdict.title}</strong>
+          <span>${verdict.detail}</span>
+        </div>
+        <div class="completion-audit">
+          <div>
+            <p class="label">反应覆盖</p>
+            <div class="reaction-ledger">${reactionRows}</div>
+          </div>
+          <div>
+            <p class="label">审计提示</p>
+            <ul>${auditRisks}</ul>
+          </div>
+        </div>
+        <div class="completion-audit experience-review">
+          <div>
+            <p class="label">体验摩擦</p>
+            <ul>${frictionRows}</ul>
+          </div>
+          <div>
+            <p class="label">整改线索</p>
+            <ul>${fixRows}</ul>
+          </div>
+          <div>
+            <p class="label">失败账本</p>
+            <div class="reaction-ledger">${failureRows}</div>
+          </div>
+        </div>
+        <div class="completion-audit playtest-review">
+          <div>
+            <p class="label">真人试玩追问</p>
+            <ul>${playtestPrompts}</ul>
+          </div>
+          <div>
+            <p class="label">自动风险信号</p>
+            <ul>${playtestRisks}</ul>
+          </div>
+        </div>
     
-    <table class="zone-summary-table">
-      <thead><tr><th>区域</th><th>模式</th><th>耗时</th><th>结果</th></tr></thead>
-      <tbody>${zoneRows}</tbody>
-    </table>
+        <table class="zone-summary-table">
+          <thead><tr><th>区域</th><th>模式</th><th>耗时</th><th>结果</th></tr></thead>
+          <tbody>${zoneRows}</tbody>
+        </table>
+      </div>
+    </details>
   `;
 }
 
@@ -3583,17 +3987,23 @@ function buildReport() {
 }
 
 function downloadReport() {
-  const report = buildReport();
-  const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = url;
-  link.download = `duanju-courtyard-report-${Date.now()}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  log("试玩报告已生成，JSON 内含 playtest 观察包。", "good");
+  let url;
+  try {
+    const blob = new Blob([JSON.stringify(buildReport(), null, 2)], { type: "application/json" });
+    url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = `duanju-courtyard-report-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    log("试玩报告已生成。", "good");
+  } catch (error) {
+    log("试玩报告未能导出，可以再试一次。", "bad");
+    console.warn("Report export failed:", error);
+  } finally {
+    link.remove();
+    if (url) URL.revokeObjectURL(url);
+  }
   render();
 }
 
@@ -3602,19 +4012,38 @@ async function sharePlayableLink() {
   url.hash = "";
   url.search = "";
   const playableUrl = url.toString();
-  try {
-    await navigator.clipboard.writeText(playableUrl);
+  if (await copyPlayableLink(playableUrl)) {
     log("试玩链接已复制。", "good");
-  } catch {
-    log(`试玩链接：${playableUrl}`, "good");
+  } else {
+    const dialog = document.getElementById("shareDialog");
+    const field = document.getElementById("shareUrl");
+    field.value = playableUrl;
+    document.getElementById("shareStatus").textContent = "浏览器未能复制链接。你可以手动复制下方网址。";
+    if (!dialog.open) dialog.showModal();
+    field.focus();
+    field.select();
+    log("试玩链接可手动复制。");
   }
   render();
 }
 
+async function copyPlayableLink(url) {
+  try {
+    await navigator.clipboard.writeText(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function runShortcut(key) {
-  const shortcutMap = { s: "扫描", e: "剥离选中词", i: "注入选中词", h: "重击", p: "弹反破绽", n: "进入下一区域" };
+  const shortcutMap = { s: "扫描", e: "剥离选中词", i: "注入选中词", h: "重击", p: "弹反破绽", d: "侧闪", n: "进入下一区域" };
   const actionName = shortcutMap[key.toLowerCase()];
   if (!actionName) return false;
+  if (key.toLowerCase() === "n" && canChooseTravelWord() && state.inventory.length && !hasInventory(state.travelWord)) {
+    proceedFromZone();
+    return true;
+  }
   const button = el.contextActions.querySelector(`[data-action="${actionName}"]:enabled`);
   if (!button) return false;
   state.metrics.shortcutsUsed += 1;
@@ -3632,16 +4061,22 @@ function initSettings() {
   const sfxVolumeSlider = document.getElementById("sfxVolumeSlider");
   const sfxVolumeVal = document.getElementById("sfxVolumeVal");
   const resetSaveDataBtn = document.getElementById("resetSaveDataBtn");
+  const saveDialog = document.getElementById("clearSaveDialog");
+  const confirmClearSaveBtn = document.getElementById("confirmClearSaveBtn");
 
   if (settingsBtn && settingsPanel && closeSettingsBtn) {
-    settingsBtn.addEventListener("click", () => {
+    let settingsOpener = settingsBtn;
+    function openSettings(event) {
+      settingsOpener = event.currentTarget;
       settingsPanel.classList.remove("hidden");
       renderSettingsZones();
       closeSettingsBtn.focus?.();
-    });
+    }
+    settingsBtn.addEventListener("click", openSettings);
+    document.getElementById("playModeBtn").addEventListener("click", openSettings);
     closeSettingsBtn.addEventListener("click", () => {
       settingsPanel.classList.add("hidden");
-      settingsBtn.focus?.();
+      settingsOpener.focus?.();
     });
   }
 
@@ -3661,13 +4096,34 @@ function initSettings() {
     });
   }
 
-  if (resetSaveDataBtn) {
+  if (resetSaveDataBtn && saveDialog && confirmClearSaveBtn) {
+    const clearError = document.getElementById("clearSaveError");
     resetSaveDataBtn.addEventListener("click", () => {
-      if (!confirm(localizeText("清空本地存档会删除关卡进度、回声残片和永久铭文。确定清空？"))) return;
+      clearError.textContent = "";
+      saveDialog.showModal();
+    });
+    saveDialog.addEventListener("close", () => {
+      if (!settingsPanel?.classList.contains("hidden")) resetSaveDataBtn.focus?.({ preventScroll: true });
+    });
+    confirmClearSaveBtn.addEventListener("click", () => {
+      try {
+        const storage = getGameStorage();
+        if (storage && storage.getItem(RUNTIME_CONFIG.saveKey) !== savedGameRaw) {
+          state.storageConflict = true;
+          renderSessionStatus();
+          clearError.textContent = localizeText("另一窗口更新了存档。请刷新后重新确认。");
+          return;
+        }
+      } catch (error) {
+        clearError.textContent = localizeText("无法读取本地存档。请检查浏览器的存储权限后再试。");
+        return;
+      }
+      saveDialog.close();
       state.profile = PROGRESSION.createProfile();
       state.testMode = "guided";
       settingsPanel?.classList.add("hidden");
       resetGame();
+      settingsBtn?.focus?.({ preventScroll: true });
     });
   }
 }
@@ -3723,11 +4179,11 @@ function initPrologue() {
   if (startBtn && overlay) {
     startBtn.addEventListener("click", () => {
       overlay.classList.add("hidden");
-      el.contextActions.querySelector("button:enabled")?.focus({ preventScroll: true });
+      const firstTarget = selectedObject() ? el.contextActions.querySelector("button:enabled") : el.sceneMap.querySelector("button");
+      firstTarget?.focus({ preventScroll: true });
       audio.init();
       audio.playSfx("success");
     });
-    if (!resumedGame) startBtn.focus?.({ preventScroll: true });
   }
 }
 
@@ -3735,6 +4191,18 @@ el.resetBtn.addEventListener("click", resetGame);
 el.undoBtn.addEventListener("click", undoLastSemanticAction);
 el.checkpointBtn.addEventListener("click", restoreZoneCheckpoint);
 el.shareLinkBtn.addEventListener("click", sharePlayableLink);
+document.getElementById("shareDialog")?.addEventListener("close", () => el.shareLinkBtn.focus?.({ preventScroll: true }));
+document.getElementById("copyShareBtn")?.addEventListener("click", async () => {
+  const field = document.getElementById("shareUrl");
+  const copied = await copyPlayableLink(field.value);
+  document.getElementById("shareStatus").textContent = localizeText(copied
+    ? "试玩链接已复制。"
+    : "链接已选中，可使用系统复制。");
+  if (!copied) {
+    field.focus();
+    field.select();
+  }
+});
 el.restartSessionBtn.addEventListener("click", resetGame);
 el.modeButtons.forEach((button) => {
   button.addEventListener("click", () => setTestMode(button.dataset.mode));
@@ -3773,6 +4241,7 @@ if (el.themeToggleBtn) {
 el.clearInventoryBtn.addEventListener("click", () => {
   if (actionBlockedByRun()) return;
   if (state.inventory.length) pushUndo("清空临时词库");
+  state.travelWord = "";
   state.inventory = [];
   state.selectedInventoryIndex = null;
   log("临时词库已清空。", "warn");
@@ -3801,7 +4270,7 @@ el.completionPanel.addEventListener("click", (event) => {
 window.addEventListener("keydown", (event) => {
   if (event.defaultPrevented || event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target?.closest?.("input, textarea, select, [contenteditable]")) return;
-  if (el.zonePanel?.classList.contains("open") || document.querySelector(".settings-panel:not(.hidden), .prologue-overlay:not(.hidden)")) return;
+  if (document.querySelector('.utility-dialog[open], .zone-panel.open, .bottom-panel[aria-modal="true"], .settings-panel:not(.hidden), .prologue-overlay:not(.hidden)')) return;
   if (runShortcut(event.key)) event.preventDefault();
 });
 setInterval(() => {
@@ -3846,6 +4315,13 @@ if (!state.log.length) {
   log("选择封文大门或裂纹石像开始。");
 }
 render();
+const startPrologueBtn = document.getElementById("startPrologueBtn");
+if (startPrologueBtn) {
+  startPrologueBtn.disabled = false;
+  const startupStatus = document.getElementById("startupStatus");
+  if (startupStatus) startupStatus.textContent = "";
+  if (!resumedGame && !isRegressionSession()) startPrologueBtn.focus?.({ preventScroll: true });
+}
 
 // Global Hover Sound Effect Delegation
 if (typeof document !== "undefined") {
@@ -3871,6 +4347,8 @@ function initLayoutInteractive() {
 
   if (isRegressionSession()) {
     document.body.classList.add("regression-mode");
+    const metrics = el.bottomPanel?.querySelector(".metrics-panel");
+    if (metrics) metrics.open = true;
   }
 
   if (el.travelMapBtn && el.zonePanel) {
@@ -3892,26 +4370,39 @@ function initLayoutInteractive() {
   if (el.toggleLogsBtn && el.bottomPanel) {
     el.toggleLogsBtn.addEventListener("click", () => setLogsOpen(!el.bottomPanel.classList.contains("open")));
     el.closeLogsBtn?.addEventListener("click", () => setLogsOpen(false));
+    document.getElementById("logBackdrop")?.addEventListener("click", () => setLogsOpen(false));
   }
 
   if (el.closeInspectorBtn && el.inspectorPanel) {
+    const inventoryBtn = document.getElementById("openInventoryBtn");
+    inventoryBtn?.addEventListener("click", () => {
+      el.inspectorPanel.classList.add("inventory-open");
+      setInspectorOpen(true);
+      const word = el.inventoryList.querySelector("button[aria-pressed=true]") || el.inventoryList.querySelector("button");
+      const inventory = el.inventoryList.closest(".inventory");
+      inventory?.scrollIntoView({ block: "nearest" });
+      (word || inventory)?.focus({ preventScroll: true });
+    });
     el.closeInspectorBtn.addEventListener("click", () => {
+      const fromInventory = el.inspectorPanel.classList.contains("inventory-open");
       setInspectorOpen(false);
-      el.sceneMap.querySelector("[aria-pressed=true]")?.focus();
+      (fromInventory ? inventoryBtn : el.sceneMap.querySelector("[aria-pressed=true]") || el.contextActions.querySelector(".open-investigation"))?.focus({ preventScroll: true });
     });
   }
   el.inspectorBackdrop?.addEventListener("click", () => el.closeInspectorBtn.click());
-  window.matchMedia?.("(max-width: 1080px)").addEventListener("change", syncInspectorActions);
+  syncInspectorActions();
+  window.matchMedia?.(INSPECTOR_DRAWER_QUERY).addEventListener("change", syncInspectorActions);
 
   document.addEventListener?.("keydown", (event) => {
+    if (document.querySelector(".utility-dialog[open]")) return;
     const modal = document.querySelector('.settings-panel:not(.hidden), .prologue-overlay:not(.hidden)') ||
-      document.querySelector('.zone-panel.open, .inspector-panel[aria-modal="true"]');
+      document.querySelector('.zone-panel.open, .inspector-panel[aria-modal="true"], .bottom-panel[aria-modal="true"]');
     if (event.key === "Tab" && modal) keepFocusInDialog(event, modal);
     if (event.key !== "Escape") return;
     if (modal?.id === "settingsPanel") document.getElementById("closeSettingsBtn").click();
     else if (modal?.id === "zonePanel") setMapOpen(false);
     else if (modal?.id === "inspectorPanel") el.closeInspectorBtn.click();
-    else if (!modal && el.bottomPanel?.classList.contains("open")) setLogsOpen(false);
+    else if (modal?.id === "bottomPanel") setLogsOpen(false);
   });
 }
 
@@ -3928,23 +4419,32 @@ function keepFocusInDialog(event, dialog) {
 function setLogsOpen(open) {
   el.bottomPanel.classList.toggle("open", open);
   el.toggleLogsBtn.setAttribute("aria-expanded", String(open));
+  const backdrop = document.getElementById("logBackdrop");
+  backdrop?.classList.toggle("open", open);
+  backdrop?.setAttribute("aria-hidden", String(!open));
   if (open) {
+    el.bottomPanel.setAttribute("role", "dialog");
+    el.bottomPanel.setAttribute("aria-modal", "true");
     renderMetrics(buildReport());
     applyLanguageToDocument();
     el.closeLogsBtn?.focus?.();
   } else {
+    el.bottomPanel.removeAttribute("role");
+    el.bottomPanel.removeAttribute("aria-modal");
     el.toggleLogsBtn.focus?.();
   }
 }
 
 function setInspectorOpen(open) {
   el.inspectorPanel?.classList.toggle("open", open);
+  if (!open) el.inspectorPanel?.classList.remove("inventory-open");
   syncInspectorActions();
 }
 
 function syncInspectorActions() {
   if (!window.matchMedia) return;
-  const inInspector = window.matchMedia("(max-width: 1080px)").matches && el.inspectorPanel?.classList.contains("open");
+  const wide = !window.matchMedia(INSPECTOR_DRAWER_QUERY).matches;
+  const inInspector = !wide && el.inspectorPanel?.classList.contains("open");
   el.inspectorBackdrop?.classList.toggle("open", inInspector);
   el.inspectorBackdrop?.setAttribute("aria-hidden", String(!inInspector));
   if (inInspector) {
@@ -3954,11 +4454,16 @@ function syncInspectorActions() {
     el.inspectorPanel?.removeAttribute("role");
     el.inspectorPanel?.removeAttribute("aria-modal");
   }
-  if (inInspector && el.contextActions.parentElement !== el.inspectorActions) {
-    el.inspectorActions.append(el.contextActions, el.resultPulse, el.actionHelp);
-  } else if (!inInspector && el.contextActions.parentElement !== el.tacticalDeck) {
-    el.tacticalDeck.append(el.contextActions, el.resultPulse, el.actionHelp);
+  const dock = wide || inInspector ? el.inspectorActions : el.tacticalDeck;
+  if (el.contextActions.parentElement !== dock) {
+    const carriedWord = document.getElementById("carriedWord");
+    const actions = [el.combatReadout, carriedWord, el.travelLoadout, el.contextActions, el.actionHelp];
+    dock.append(...actions.filter(Boolean));
   }
+  const feedbackDock = inInspector || (wide && selectedObject()) ? el.inspectorActions : el.tacticalDeck;
+  if (el.resultPulse.parentElement !== feedbackDock) feedbackDock.append(el.resultPulse);
+  const runDock = inInspector ? el.inspectorActions : el.tacticalDeck;
+  if (el.stageRunStatus.parentElement !== runDock) runDock.prepend(el.stageRunStatus);
 }
 
 function setMapOpen(open) {
@@ -3966,7 +4471,6 @@ function setMapOpen(open) {
   el.zonePanel.classList.toggle("open", open);
   el.mapBackdrop?.classList.toggle("open", open);
   el.mapBackdrop?.setAttribute("aria-hidden", String(!open));
-  document.body.classList.toggle("map-open", open);
   el.travelMapBtn?.setAttribute("aria-expanded", String(open));
   if (open) el.closeTravelBtn?.focus?.();
   else el.travelMapBtn?.focus?.();

@@ -27,6 +27,8 @@ function routeInject(id, tagId) {
   const index = runtimeState.inventory.indexOf(tagId);
   if (index === -1) throw new Error(`Route inventory missing: ${tagName(tagId)}`);
   selectInventory(index);
+  const check = canInject();
+  if (!check.enabled) throw new Error(`Route cannot write ${tagName(tagId)} to ${id}: ${check.reason}`);
   injectSelectedInventory();
 }
 
@@ -60,7 +62,6 @@ function runRouteRegression(mode = "guided", enterArchive = nextZone) {
   routeInject("block", "Semantic.Mass.Light");
   moveBlock();
   routeInject("block", "Semantic.Mass.Heavy");
-  pressPlate();
   routeAssert("Z2 plate pressed", runtimeState.flags.platePressed);
   nextZone();
 
@@ -150,6 +151,7 @@ function setRouteZone(zoneId) {
   const index = runtimeState.zones.findIndex((item) => item.id === zoneId);
   if (index === -1) throw new Error(`Route zone not found: ${zoneId}`);
   runtimeState.zone = index;
+  runtimeState.unlockedZones = runtimeState.zones.slice(0, index + 1).map(z => z.id);
   runtimeState.selectedObjectId = null;
   runtimeState.selectedTagId = null;
   runtimeState.selectedInventoryIndex = null;

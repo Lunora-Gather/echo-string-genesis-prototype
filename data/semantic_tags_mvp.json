@@ -15,7 +15,7 @@
       "slotType": "Structure",
       "mvpEditable": true,
       "durationType": "PersistentUntilRewritten",
-      "extractCost": 1,
+      "extractCost": 4,
       "injectCost": 2,
       "compatibleObjectTypes": ["Door", "Gate", "Mechanism", "Enemy", "Boss"],
       "incompatibleObjectTypes": ["Liquid", "LooseDebris"],
@@ -46,7 +46,7 @@
       "durationType": "PersistentUntilRewritten",
       "extractCost": 1,
       "injectCost": 2,
-      "compatibleObjectTypes": ["Door", "Stone", "Enemy", "Boss", "Mechanism"],
+      "compatibleObjectTypes": ["Door", "Stone", "Enemy", "Boss", "Mechanism", "Water"],
       "incompatibleObjectTypes": ["Liquid", "FireSource"],
       "replacesTagsInSameSlot": true,
       "effects": {

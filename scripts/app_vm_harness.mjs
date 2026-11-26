@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import vm from "node:vm";
 
+export const releaseVersion = fs.readFileSync(new URL("../VERSION", import.meta.url), "utf8").trim();
+
 class FakeClassList {
   constructor(element) {
     this.element = element;

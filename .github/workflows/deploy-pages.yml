@@ -33,22 +33,12 @@ jobs:
           node-version: 24
 
       - name: Validate playable artifact
-        run: |
-          npm test
-          test -f prototype/index.html
-          test -f prototype/app.js
-          test -f prototype/regression.js
-          test -f prototype/styles.css
-          test -f prototype/core/runtime-config.js
-          test -f prototype/core/progression.js
-          grep -q "app.js?v=1.1.1" prototype/index.html
-          grep -q "regression.js?v=1.1.1" prototype/index.html
-          grep -q "1.1.1 Chronicle Expedition" prototype/index.html
+        run: npm test
 
       - name: Stage static site
         run: |
           mkdir -p _site/core
-          cp prototype/{.nojekyll,index.html,app.js,regression.js,styles.css,cyber_ink_bg.jpg,light_parchment_bg.jpg,courtyard-scene.jpg,courtyard-objects.jpg} _site/
+          cp prototype/{.nojekyll,index.html,app.js,regression.js,styles.css,*.jpg} _site/
           cp prototype/core/*.js _site/core/
 
       - name: Configure Pages

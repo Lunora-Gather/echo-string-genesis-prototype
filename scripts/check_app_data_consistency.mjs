@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { loadAppContext, readAppMetadata } from "./app_vm_harness.mjs";
+import { loadAppContext, readAppMetadata, releaseVersion } from "./app_vm_harness.mjs";
 
 const tagsDoc = JSON.parse(fs.readFileSync("data/semantic_tags_mvp.json", "utf8"));
 const reactionsDoc = JSON.parse(fs.readFileSync("data/semantic_reactions_mvp.json", "utf8"));
@@ -71,8 +71,8 @@ for (const reaction of reactionsDoc.reactions) {
   compareList(rule.tags, reaction.requiredTags, `reaction ingredients drift: ${rule.id}`);
 }
 
-if (app.build !== "1.1.1") fail(`app build expected 1.1.1, got ${app.build}`);
-if (app.rollout.length !== 14) fail(`rollout expected 14 entries, got ${app.rollout.length}`);
+if (app.build !== releaseVersion) fail(`app build expected ${releaseVersion}, got ${app.build}`);
+if (app.rollout.at(-1)?.version !== releaseVersion) fail(`release notes missing ${releaseVersion}`);
 
 if (failures.length) {
   console.error(failures.map((item) => `[FAIL] ${item}`).join("\n"));

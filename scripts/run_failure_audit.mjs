@@ -1,4 +1,4 @@
-import { loadAppContext } from "./app_vm_harness.mjs";
+import { loadAppContext, releaseVersion } from "./app_vm_harness.mjs";
 
 const { context } = loadAppContext();
 const audit = context.window.__echoString.runFailureAudit();
@@ -15,7 +15,7 @@ const expectedCategories = [
 const failures = [];
 
 if (!audit.passed) failures.push("failure audit did not pass");
-if (audit.build !== "1.1.1") failures.push(`expected 1.1.1 build, got ${audit.build}`);
+if (audit.build !== releaseVersion) failures.push(`expected ${releaseVersion} build, got ${audit.build}`);
 for (const category of expectedCategories) {
   if (!audit.failureCounts[category]) failures.push(`missing failure category: ${category}`);
 }

@@ -3,46 +3,82 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="《语弦生态：创世纪》1.1.1 长期试玩版：扫描、剥离、注入语义，挑战递进远征并积累永久铭文。" />
-    <meta name="theme-color" content="#f3efe6" />
+    <meta name="description" content="《语弦生态：创世纪》是一款语义解谜游戏。调查庭院，取下刻在物件上的词，再写到别处改变机关与敌人的状态。" />
+    <meta name="theme-color" content="#111719" />
     <meta property="og:title" content="语弦生态：断句庭院" />
-    <meta property="og:description" content="Echo-String: Genesis 1.1.1 Chronicle Expedition 长期试玩版。" />
+    <meta property="og:description" content="从石门取走封印，把它带进下一座庭院。在线试玩七章语义解谜和递进远征。" />
     <meta property="og:type" content="website" />
     <title>语弦生态：断句庭院</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./styles.css?v=1.1.1-courtyard" />
+    <link rel="stylesheet" href="./styles.css?v=1.1.2" />
   </head>
-  <body class="theme-light">
+  <body>
     <!-- Narrative Prologue Overlay -->
     <div id="prologueOverlay" class="prologue-overlay" role="dialog" aria-modal="true" aria-labelledby="prologueTitle">
       <div class="prologue-box">
-        <span class="prologue-protocol">语弦生态 · 创世纪</span>
-        <div class="language-switch prologue-language-switch" aria-label="简繁切换">
-          <button class="language-button active" type="button" data-language="zh-Hans">简</button>
-          <button class="language-button" type="button" data-language="zh-Hant">繁</button>
+        <img class="prologue-art" src="./sealed-courtyard.jpg" alt="" fetchpriority="high" />
+        <div class="prologue-page">
+          <div class="prologue-top">
+            <p class="prologue-series">语弦生态 · 创世纪</p>
+            <div class="language-switch" role="group" aria-label="简繁切换">
+              <button class="language-button active" type="button" data-language="zh-Hans">简</button>
+              <button class="language-button" type="button" data-language="zh-Hant">繁</button>
+            </div>
+          </div>
+          <div class="prologue-story">
+            <h2 id="prologueTitle" class="prologue-title">断句庭院</h2>
+            <p class="prologue-content">原初作者停笔后，石门再也没有打开。<br />只有刻在万物上的词，还在左右庭院。</p>
+            <button id="startPrologueBtn" class="prologue-btn" type="button" disabled>进入庭院 <span aria-hidden="true">→</span></button>
+            <p id="startupStatus" class="startup-status" role="status">庭院需要启用 JavaScript 才能运行。</p>
+            <a id="retryStartup" class="startup-retry hidden" href="">重新载入</a>
+          </div>
         </div>
-        <h2 id="prologueTitle" class="prologue-title">断句庭院</h2>
-        <div class="prologue-content">
-          <p>原初作者停笔后，庭院的物性逐渐失序。封闭的石门、冻结的水面，仍遵从刻在它们身上的语义。</p>
-          <p>你是异墨者「楷」。扫描对象，剥离词缀，再用原墨写入新的含义，为庭院打开一条路。</p>
-        </div>
-        <button id="startPrologueBtn" class="prologue-btn" type="button">进入庭院 <span aria-hidden="true">↗</span></button>
       </div>
     </div>
+
+    <dialog id="clearSaveDialog" class="utility-dialog" aria-labelledby="clearSaveTitle" aria-describedby="clearSaveDetail">
+      <h2 id="clearSaveTitle">清空本地存档</h2>
+      <p id="clearSaveDetail">关卡进度、回声残片和永久铭文都会被清空。这个操作无法撤销。</p>
+      <p id="clearSaveError" class="utility-error" role="alert"></p>
+      <form method="dialog" class="utility-actions">
+        <button class="quiet-button" autofocus>取消</button>
+        <button id="confirmClearSaveBtn" class="danger-button" type="button">确认清空</button>
+      </form>
+    </dialog>
+
+    <dialog id="shareDialog" class="utility-dialog" aria-labelledby="shareTitle">
+      <h2 id="shareTitle">分享庭院</h2>
+      <p id="shareStatus" role="status">浏览器未能复制链接。你可以手动复制下方网址。</p>
+      <input id="shareUrl" class="share-url" type="url" aria-label="试玩链接" readonly />
+      <form method="dialog" class="utility-actions">
+        <button id="closeShareBtn" class="quiet-button">关闭</button>
+        <button id="copyShareBtn" class="quiet-button primary" type="button">复制链接</button>
+      </form>
+    </dialog>
 
     <!-- Settings Menu Overlay -->
     <div id="settingsPanel" class="settings-panel hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="settings-box">
         <div class="settings-header">
-          <h3 id="settingsTitle">系统配置</h3>
+          <h3 id="settingsTitle">设置</h3>
           <button id="closeSettingsBtn" class="close-settings-btn" type="button" aria-label="关闭设置">&times;</button>
         </div>
         <div class="settings-body">
+          <div class="setting-item">
+            <h4>玩法模式</h4>
+            <div class="mode-switch" role="group" aria-label="玩法模式">
+              <button class="mode-button active" type="button" data-mode="guided" data-testid="mode-guided" aria-pressed="true">引导</button>
+              <button class="mode-button" type="button" data-mode="low" data-testid="mode-low" aria-pressed="false">探索</button>
+              <button class="mode-button" type="button" data-mode="expedition" data-testid="mode-expedition" aria-pressed="false">远征</button>
+              <button class="mode-button" type="button" data-mode="debug" data-testid="mode-debug" aria-pressed="false">沙盒</button>
+            </div>
+          </div>
+          <div class="setting-item">
+            <h4>文字</h4>
+            <div class="language-switch" role="group" aria-label="简繁切换">
+              <button class="language-button active" type="button" data-language="zh-Hans">简</button>
+              <button class="language-button" type="button" data-language="zh-Hant">繁</button>
+            </div>
+          </div>
           <div class="setting-item">
             <label for="bgmVolumeSlider">环境音量</label>
             <div class="slider-row">
@@ -58,13 +94,13 @@
             </div>
           </div>
           <div class="setting-item">
-            <button id="resetSaveDataBtn" class="danger-button" type="button">清空本地存档</button>
-          </div>
-          <div class="setting-item">
             <h4>快速旅行</h4>
             <div id="settingsZoneSelect" class="settings-zone-select">
               <!-- Dynamically populated -->
             </div>
+          </div>
+          <div class="setting-item">
+            <button id="resetSaveDataBtn" class="danger-button" type="button">清空本地存档</button>
           </div>
         </div>
       </div>
@@ -75,45 +111,23 @@
     <button id="mapBackdrop" class="map-backdrop" type="button" tabindex="-1" aria-label="关闭地图" aria-hidden="true"></button>
 
     <button id="inspectorBackdrop" class="inspector-backdrop" type="button" tabindex="-1" aria-label="关闭扫描器" aria-hidden="true"></button>
+    <button id="logBackdrop" class="log-backdrop" type="button" tabindex="-1" aria-label="关闭日志" aria-hidden="true"></button>
 
     <main class="app-shell">
       <header class="topbar">
         <div class="title-block">
           <span class="brand-seal" aria-hidden="true">弦</span>
-          <div>
-            <p class="eyebrow">Echo-String: Genesis</p>
-            <h1>断句庭院</h1>
-          </div>
+          <h1>断句庭院</h1>
         </div>
         <nav class="toolbar" aria-label="庭院工具">
           <button id="travelMapBtn" class="tool-button" type="button" aria-label="旅行地图" aria-controls="zonePanel" aria-expanded="false"><span aria-hidden="true" class="tool-icon map-icon"></span>地图</button>
           <button id="toggleLogsBtn" class="tool-button" type="button" aria-label="历史日志" aria-controls="bottomPanel" aria-expanded="false"><span aria-hidden="true" class="tool-icon log-icon"></span>日志</button>
-          <button id="themeToggleBtn" class="tool-button theme-toggle-btn" type="button" aria-label="切换主题">亮色</button>
+          <button id="themeToggleBtn" class="tool-button theme-toggle-btn" type="button" aria-label="切换主题">暗色</button>
           <button id="settingsBtn" class="tool-button" type="button" aria-label="游戏配置"><span aria-hidden="true" class="tool-icon settings-icon"></span>设置</button>
         </nav>
       </header>
 
-      <section class="playbar" aria-label="玩法与资源">
-        <div class="play-options">
-          <div class="mode-switch" role="group" aria-label="玩法模式">
-            <button class="mode-button active" type="button" data-mode="guided" data-testid="mode-guided" aria-pressed="true">引导</button>
-            <button class="mode-button" type="button" data-mode="low" data-testid="mode-low" aria-pressed="false">探索</button>
-            <button class="mode-button" type="button" data-mode="expedition" data-testid="mode-expedition" aria-pressed="false">远征</button>
-            <button class="mode-button" type="button" data-mode="debug" data-testid="mode-debug" aria-pressed="false">沙盒</button>
-          </div>
-          <div class="language-switch" role="group" aria-label="简繁切换">
-            <button class="language-button active" type="button" data-language="zh-Hans">简</button>
-            <button class="language-button" type="button" data-language="zh-Hant">繁</button>
-          </div>
-        </div>
-        <div class="status-strip" aria-label="玩家状态">
-          <div class="status-card ink-card"><span>原墨</span><strong id="inkValue">12</strong><i class="status-meter" aria-hidden="true"><b></b></i></div>
-          <div class="status-card inventory-card"><span>词库</span><strong id="inventoryCount">0/3</strong><i class="status-meter" aria-hidden="true"><b></b></i></div>
-          <div class="status-card resonance-card"><span>共鸣</span><strong id="resonanceValue">0/3</strong><i class="status-meter" aria-hidden="true"><b></b></i></div>
-          <div class="status-card time-card"><span>用时</span><strong id="elapsedValue">0:00</strong></div>
-        </div>
-      </section>
-
+      <div id="sessionStatus" class="session-status hidden" role="status"></div>
       <section class="workspace">
         <aside id="zonePanel" class="panel zone-panel" role="dialog" aria-modal="true" aria-labelledby="mapTitle">
           <div class="panel-heading">
@@ -125,23 +139,27 @@
         </aside>
 
         <section class="stage-panel" aria-labelledby="zoneTitle">
-          <header class="stage-hero" id="stageHero" data-zone="Z1">
-            <div class="stage-hero-content">
-              <div class="hero-meta"><span id="zoneIndex">Z1</span><i aria-hidden="true"></i><span>当前目标</span></div>
+          <div class="stage-hero" id="stageHero" data-zone="Z1">
+            <header class="chapter-heading">
+              <div class="chapter-meta"><span id="zoneIndex">第一章</span><button id="playModeBtn" type="button" aria-haspopup="dialog" aria-controls="settingsPanel">引导</button></div>
               <h2 id="zoneTitle"></h2>
               <p id="zoneObjective" class="objective"></p>
-              <p id="stageRunStatus" class="stage-run-status hidden"></p>
-            </div>
-            <div class="chapter-progress" aria-hidden="true"><b></b></div>
-          </header>
-          <div class="scene-board">
-            <div class="scene-heading">
-              <h3>场景对象</h3>
-              <span id="sceneCount" class="scene-count"></span>
-            </div>
+            </header>
             <div id="sceneMap" class="scene-map" aria-label="场景对象"></div>
+            <div class="scene-scan" aria-hidden="true"></div>
+            <div class="chapter-progress" aria-hidden="true"><b></b></div>
+          </div>
+          <div class="status-strip" aria-label="玩家状态">
+            <div class="status-card ink-card"><span>原墨</span><strong id="inkValue">12</strong><i class="status-meter" aria-hidden="true"><b></b></i></div>
+            <button id="openInventoryBtn" class="status-card inventory-card" type="button" aria-controls="inspectorPanel"><span>词库</span><strong id="inventoryCount">0/3</strong><span class="inventory-chevron" aria-hidden="true"></span></button>
+            <div class="status-card resonance-card"><span>共鸣</span><strong id="resonanceValue">0/3</strong><i class="status-meter" aria-hidden="true"><b></b></i></div>
+            <div class="status-card time-card"><span>用时</span><strong id="elapsedValue">0:00</strong></div>
           </div>
           <div id="tacticalDeck" class="tactical-deck">
+            <p id="stageRunStatus" class="stage-run-status hidden"></p>
+            <p id="combatReadout" class="combat-readout hidden"></p>
+            <p id="carriedWord" class="carried-word hidden"></p>
+            <div id="travelLoadout" class="travel-loadout hidden" role="group" aria-label="选择带入下一区域的词缀"></div>
             <div id="contextActions" class="context-actions"></div>
             <div id="resultPulse" class="result-pulse" aria-live="polite"></div>
             <div id="actionHelp" class="action-help"></div>
@@ -150,34 +168,22 @@
 
         <aside id="inspectorPanel" class="panel inspector-panel" aria-labelledby="inspectorTitle">
           <div class="panel-heading scanner-heading">
-            <div>
-              <h2 id="inspectorTitle">语义扫描器</h2>
-              <span id="selectedHint" class="hint">未选择对象</span>
-            </div>
-            <button id="closeInspectorBtn" class="quiet-button close-btn" type="button" aria-label="关闭扫描器">关闭</button>
+            <h2 id="inspectorTitle">语义扫描器</h2>
+            <span id="selectedHint" class="sr-only">未选择对象</span>
+            <button id="closeInspectorBtn" class="quiet-button close-btn" type="button" aria-label="关闭扫描器，返回场景">返回场景</button>
           </div>
           <div class="inspector-scroll">
             <div id="inspector" class="inspector-empty">选择场景对象后开始扫描。</div>
-            <div class="inventory">
+            <section class="inventory" aria-labelledby="inventoryTitle" tabindex="-1">
               <div class="panel-heading">
-                <h3>临时词库</h3>
+                <h3 id="inventoryTitle">临时词库</h3>
                 <button id="clearInventoryBtn" class="quiet-button" type="button">清空</button>
               </div>
               <div id="inventoryList" class="inventory-list"></div>
-            </div>
+            </section>
           </div>
           <div id="inspectorActions" class="inspector-action-dock"></div>
         </aside>
-      </section>
-
-      <section class="session-panel" aria-label="本轮操作">
-        <div id="sessionStatus" class="session-status"></div>
-        <div class="session-actions">
-          <button id="undoBtn" class="quiet-button" type="button">撤销</button>
-          <button id="checkpointBtn" class="quiet-button" type="button">检查点</button>
-          <button id="restartSessionBtn" class="quiet-button" type="button">重开本轮</button>
-          <button id="shareLinkBtn" class="quiet-button" type="button">分享</button>
-        </div>
       </section>
 
       <section id="completionPanel" class="completion-panel" aria-label="通关总结"></section>
@@ -192,41 +198,62 @@
             <div id="masteryPanel" class="mastery-panel" aria-label="语义图谱与区域精通"></div>
           </div>
         </details>
-        <section id="chroniclePanel" class="chronicle-panel" aria-label="长期纪行与铭文成长"></section>
+        <details class="chronicle-details">
+          <summary>远征与铭文</summary>
+          <section id="chroniclePanel" class="chronicle-panel" aria-label="长期纪行与铭文成长"></section>
+        </details>
+        <details class="session-panel">
+          <summary>本轮操作</summary>
+          <div class="session-actions">
+            <button id="undoBtn" class="quiet-button" type="button">撤销</button>
+            <button id="checkpointBtn" class="quiet-button" type="button">检查点</button>
+            <button id="restartSessionBtn" class="quiet-button" type="button">重开本轮</button>
+            <button id="shareLinkBtn" class="quiet-button" type="button">分享</button>
+          </div>
+        </details>
       </div>
 
-      <footer class="app-footer"><span>语弦生态 · 创世纪</span><span class="build-pill">1.1.1 Chronicle Expedition</span></footer>
+      <footer class="app-footer"><span>语弦生态 · 创世纪</span><span class="build-pill">1.1.2 Chronicle Expedition</span></footer>
 
-      <section id="bottomPanel" class="bottom-panel" aria-label="事件与指标">
-        <div class="panel-heading">
-          <span class="label">事件与指标</span>
+      <section id="bottomPanel" class="bottom-panel" aria-labelledby="logTitle">
+        <div class="panel-heading log-heading">
+          <h2 id="logTitle">庭院日志</h2>
+          <button id="closeLogsBtn" class="quiet-button" type="button" aria-label="关闭日志">关闭</button>
+        </div>
+        <div class="log-body">
+          <div class="reflection-panel">
+            <span class="label">本区笔记</span>
+            <p id="reflectionBox" class="reflection-box"></p>
+          </div>
+          <div class="log-panel">
+            <div id="eventLog" class="event-log"></div>
+          </div>
+          <details class="metrics-panel">
+            <summary>本轮指标</summary>
+            <div id="metricsBox" class="metrics-box"></div>
+          </details>
           <div class="tool-row">
             <button id="refillInkBtn" class="quiet-button" type="button">补墨</button>
             <button id="resetZoneBtn" class="quiet-button" type="button">重置区</button>
             <button id="downloadReportBtn" class="quiet-button" type="button">报告</button>
-            <button id="closeLogsBtn" class="quiet-button" type="button" aria-label="关闭日志">关闭</button>
           </div>
-        </div>
-        <div class="log-panel">
-          <p class="label">事件日志</p>
-          <div id="eventLog" class="event-log"></div>
-        </div>
-        <div class="reflection-panel">
-          <p class="label">反思提示</p>
-          <div id="reflectionBox" class="reflection-box"></div>
-        </div>
-        <div class="metrics-panel">
-          <p class="label">试玩指标</p>
-          <div id="metricsBox" class="metrics-box"></div>
         </div>
       </section>
 
     </main>
 
     <script id="reportData" type="application/json"></script>
-    <script src="./core/runtime-config.js?v=1.1.1-schema3" defer></script>
-    <script src="./core/progression.js?v=1.1.1-fn2" defer></script>
-    <script src="./app.js?v=1.1.1-courtyard" defer></script>
-    <script src="./regression.js?v=1.1.1-fn2" defer></script>
+    <script src="./core/runtime-config.js?v=1.1.2" defer></script>
+    <script src="./core/progression.js?v=1.1.2" defer></script>
+    <script src="./app.js?v=1.1.2" defer></script>
+    <script src="./regression.js?v=1.1.2" defer></script>
+    <script>
+      document.getElementById("startupStatus").textContent = "庭院正在载入…";
+      document.addEventListener("DOMContentLoaded", () => {
+        if (!document.getElementById("startPrologueBtn").disabled) return;
+        document.getElementById("startupStatus").textContent = "庭院未能载入。请检查连接后重试。";
+        document.getElementById("retryStartup").classList.remove("hidden");
+      }, { once: true });
+    </script>
   </body>
 </html>

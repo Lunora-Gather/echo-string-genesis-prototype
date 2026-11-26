@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import vm from "node:vm";
+import { releaseVersion } from "./app_vm_harness.mjs";
 
 const context = { console };
 context.globalThis = context;
@@ -46,7 +47,7 @@ check("next expedition advances cycle", nextExpedition.cycle === 2);
 
 const failed = checks.filter((item) => !item.passed);
 console.log(JSON.stringify({
-  build: "1.1.1",
+  build: releaseVersion,
   passed: failed.length === 0,
   checks
 }, null, 2));

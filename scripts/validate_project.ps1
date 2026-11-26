@@ -4,6 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$version = (Get-Content -LiteralPath (Join-Path $root "VERSION") -Raw).Trim()
 $failures = [System.Collections.Generic.List[string]]::new()
 
 function Add-Pass {
@@ -118,10 +119,10 @@ if (-not $node) {
 
 $indexPath = Join-Path $root "prototype\index.html"
 $indexHtml = Get-Content -LiteralPath $indexPath -Raw
-if ($indexHtml -match "app\.js\?v=1\.1\.1") {
+if ($indexHtml -match ([regex]::Escape("app.js?v=$version") + '"')) {
   Add-Pass "index.html references current app cache key"
 } else {
-  Add-Fail "index.html does not reference app.js?v=1.1.1"
+  Add-Fail "index.html does not reference app.js?v=$version"
 }
 
 $appPath = Join-Path $root "prototype\app.js"
@@ -131,10 +132,10 @@ $runtimeConfigJs = Get-Content -LiteralPath $runtimeConfigPath -Raw
 $regressionPath = Join-Path $root "prototype\regression.js"
 $regressionJs = Get-Content -LiteralPath $regressionPath -Raw
 $runtimeJs = "$appJs`n$regressionJs"
-if ($runtimeConfigJs -match 'version: "1.1.1"') {
-  Add-Pass "runtime config build label is 1.1.1"
+if ($runtimeConfigJs -match [regex]::Escape("version: `"$version`"")) {
+  Add-Pass "runtime config build label is $version"
 } else {
-  Add-Fail "runtime config build label is not 1.1.1"
+  Add-Fail "runtime config build label is not $version"
 }
 if ($runtimeJs -match "runGuidedRegression") {
   Add-Pass "browser regression hook is exposed"

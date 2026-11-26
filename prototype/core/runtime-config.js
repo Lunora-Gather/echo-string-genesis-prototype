@@ -1,6 +1,6 @@
 (function initEchoRuntimeConfig(root) {
   root.EchoRuntimeConfig = Object.freeze({
-    version: "1.1.1",
+    version: "1.1.2",
     name: "Chronicle Expedition",
     saveSchema: 3,
     saveKey: "echo_string_save_v1.1",
